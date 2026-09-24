@@ -8,9 +8,14 @@
       "sha256": "2d3edcf42f26aafccc0f34b3a121e4d7aa14ba225621604d9811865891df974c"
     },
     {
-      "output": "skills/design-contract/SKILL.md",
+      "output": "skills/designer/SKILL.md",
       "origin": "deus-original",
-      "sha256": "699404200451c79dec92360b28e1b46b07a01d2a379696220c017bb31684f2dd"
+      "sha256": "2d99b4b6043355481c6e7d3e7237e392f7f67d5143e7e52fb158deaee707d27b"
+    },
+    {
+      "output": "skills/product-control/SKILL.md",
+      "origin": "deus-original",
+      "sha256": "d48a2ea81b20b5bfe365ade078d7ce41fd346a3046dfc12ad0c995a8b03e0cb5"
     },
     {
       "output": "skills/web-research/SKILL.md",

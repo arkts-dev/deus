@@ -250,7 +250,7 @@ test('minimal prompt and lazy skills describe tracked artifact contracts', async
   assert.match(prompt, /Dexter is the sole execution orchestrator/);
   assert.match(prompt, /never retry automatically/i);
   const fields = {
-    'design-contract': [
+    designer: [
       'kind',
       'id',
       'created_at',
@@ -308,6 +308,11 @@ test('minimal prompt and lazy skills describe tracked artifact contracts', async
       assert.match(source, new RegExp(`\\b${field}\\b`), `${skill}: ${field}`);
     assert.match(source, /\.deus\//);
   }
+  const designer = await readFile(join(repository, 'skills/designer/SKILL.md'), 'utf8');
+  assert.match(designer, /never amend/i);
+  assert.match(designer, /never write inside `fs\/` or `forge\/`/i);
+  assert.match(designer, /deus_design_check/);
+  assert.match(designer, /deus_design_write/);
   const simplify = await readFile(join(repository, 'skills/simplify-review/SKILL.md'), 'utf8');
   assert.match(simplify, /Review project source read-only/);
   assert.match(simplify, /Do not call `deus_dexter_probe` or `deus_dexter_exec`/);
@@ -315,4 +320,15 @@ test('minimal prompt and lazy skills describe tracked artifact contracts', async
   const control = await readFile(join(repository, 'skills/dexter-control/SKILL.md'), 'utf8');
   assert.match(control, /complete product text as `submit` arguments/);
   assert.match(control, /Dexter does not automatically read it/);
+  const productControl = await readFile(
+    join(repository, 'skills/product-control/SKILL.md'),
+    'utf8',
+  );
+  assert.match(productControl, /\bPRODUCT\b/);
+  assert.match(productControl, /\bNOISE\b/);
+  assert.match(productControl, /\bDEAD\b/);
+  assert.match(productControl, /deus_board_snapshot/);
+  assert.match(productControl, /deus_board_plan/);
+  assert.match(productControl, /deus_board_close/);
+  assert.match(productControl, /Never run the `run` drain/i);
 });

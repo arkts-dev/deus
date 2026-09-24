@@ -2,7 +2,7 @@
 
 Deus 0.3 is an open source [Pi](https://github.com/earendil-works/pi-mono) package for product contracts, local and public research, and evidence-based acceptance. It adds a small Dexter CLI bridge without taking over engineering orchestration: Dexter remains responsible for implementation planning, execution, review, and integration.
 
-The package contains one Pi extension and five on-demand skills: `design-contract`, `dexter-control`, `local-research`, `web-research`, and `simplify-review`. Deus has no standalone `deus` command or platform-specific executable.
+The package contains Pi extensions and on-demand skills for design, product control, Dexter control, research, and review. Deus has no standalone `deus` command or platform-specific executable.
 
 ## Requirements
 
@@ -27,14 +27,15 @@ pi install git:github.com/arkts-dev/deus@v0.3.0
 pi list
 ```
 
-The [v0.3.0 GitHub Release](https://github.com/arkts-dev/deus/releases/tag/v0.3.0) also provides the prebuilt `deus-ex-machina-0.3.0.tgz` package and `SHA256SUMS`. The archive contains compiled JavaScript, the five skills, the minimal prompt, metadata, and license files. Pi's supported installation path for this release is the Git tag above; the release archive is a downloadable build for inspection or other npm-compatible tooling. It is not a separate executable and does not need an operating-system-specific variant. The compiled `dist/` files are committed so Pi can load the Git installation without a local TypeScript build.
+The [v0.3.0 GitHub Release](https://github.com/arkts-dev/deus/releases/tag/v0.3.0) also provides the prebuilt `deus-ex-machina-0.3.0.tgz` package and `SHA256SUMS`. The archive contains compiled JavaScript, the packaged skills, the minimal prompt, metadata, and license files. Pi's supported installation path for this release is the Git tag above; the release archive is a downloadable build for inspection or other npm-compatible tooling. It is not a separate executable and does not need an operating-system-specific variant. The compiled `dist/` files are committed so Pi can load the Git installation without a local TypeScript build.
 
 ## First use
 
 Start `pi` in your project. You can ask it to create a product design contract, inspect local code with cited evidence, or research a public question. For example:
 
 ```text
-Use design-contract to define the outcome and acceptance criteria for this feature.
+Use designer to define the outcome and acceptance criteria for this feature.
+Use product-control to find the work that actually moves the product and keep the Dexter board saturated.
 Research the public documentation for this API and distinguish evidence from inference.
 Run deus_dexter_probe and explain whether the installed CLI matches the supported profile.
 ```
