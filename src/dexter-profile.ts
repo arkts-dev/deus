@@ -1,0 +1,22 @@
+// Temporary Dexter bridge profile captured from the legacy b53f384 executable.
+export const PROFILE_SHA = 'b53f3844071130eb68d94aba3900bac63511958e';
+export const PROFILE_HELP_HASHES: Record<string, string> = {
+  version: '4279ca179eebb6755f52f8f05021bef0c8ed0cb9a56aea2b0ddf8e78fa8e6401',
+  help: '78d8013919f259e9b2f1dc01e00827da312ce3985cbee4247e9b1742f6b3d606',
+  init: '81e058e2511d993e7e804e84f2239d4f3eb4fe5e6ee4f3d003c476c0796a1cb5',
+  submit: '3e6be3c13f0d0598fa3aa14fe1599a207a2c7110305e94a978b15081e5e6f0af',
+  issue: '86dab5ad83a14088f4403b748a1fa201bcaea7ee32b1c58c4acc701aaf84c7a4',
+  status: '4b32b41fb5b452d8c444b7b13f9ec50aeaec63d859615dfcb41f7d1bc501964b',
+  show: '2553234d9e0c534528f763450105c99cca4825bfc0432b8fc476d6b5755cd5b6',
+  requests: '9ef76f1a51932a9099af4302a3b6a6c3cbee1f88cbf1eef1c3909a2d4a097dac',
+  run: '0b34400cbbe999758f4a6f047a4562149d0443acc16a4718bddb6d1d2e225757',
+  cmd: '7195caab3a35d228538e1342edeb72ecc0396f996275802250846a4e1e352db4',
+  wiki: 'be78a1bc8e81ddb71abec4ece89be461dac77de74b900030c4c76a355abf87e1',
+  'reprioritize-issue': '22b7c3941308787f544ae0598f86398b4a1afc661ce59a85a2cb90f895113794',
+  doctor: '502d402e3ed0a6dc2074b869e676971bf9b50a64c74873ac8516d2a89848e17a',
+  answer: 'f29dc7da41cb8a7b2bbdb9748194a734bdf585fc6219f53524004fad648c6875',
+  deny: 'bdd97054fb710d8e9a95f8be75414bbd6c0c729a966f085a11348d62e1ed8b6b',
+  'nudge-issue': 'e754929c10e34ab16ff718611ea3b37f7b0e678be9e59f72e3bc46fbd0bc4ea7',
+  'accept-architecture': '0a18b60ab7d41f678d3d0aa4b96ce7f5cdf6f9584bea2da9d17d28d64c94a4b8',
+  'relink-issue': '49d1ee96df9b242ae226fb68fd16621360940cece021e166a9bea08e88289821',
+};

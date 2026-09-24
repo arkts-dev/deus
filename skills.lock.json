@@ -1,0 +1,31 @@
+{
+  "schema": 3,
+  "version": "0.3.0",
+  "entries": [
+    {
+      "output": "skills/dexter-control/SKILL.md",
+      "origin": "deus-original",
+      "sha256": "2d3edcf42f26aafccc0f34b3a121e4d7aa14ba225621604d9811865891df974c"
+    },
+    {
+      "output": "skills/design-contract/SKILL.md",
+      "origin": "deus-original",
+      "sha256": "699404200451c79dec92360b28e1b46b07a01d2a379696220c017bb31684f2dd"
+    },
+    {
+      "output": "skills/web-research/SKILL.md",
+      "origin": "deus-original",
+      "sha256": "73245e8505d1e6f14df06236bc0b30a7ce946e5a1cc7d64f0069608ca95d4311"
+    },
+    {
+      "output": "skills/local-research/SKILL.md",
+      "origin": "deus-original",
+      "sha256": "d70c0a9effd8ba9c01f9dcc2ee35619bfed15128d4686e5d744f7acff3a90e2c"
+    },
+    {
+      "output": "skills/simplify-review/SKILL.md",
+      "origin": "deus-original",
+      "sha256": "285f9c0357f15c88a1d6c661bbce0eb84c3727f518cb837a215742db8f8948b0"
+    }
+  ]
+}
