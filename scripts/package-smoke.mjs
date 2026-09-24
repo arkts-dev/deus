@@ -16,6 +16,8 @@ try {
   const paths = info.files.map((file) => file.path);
   for (const path of [
     'dist/extension.js',
+    'dist/designer.js',
+    'dist/board.js',
     'dist/dexter.js',
     'dist/research.js',
     'prompts/kernel.md',
@@ -25,7 +27,8 @@ try {
     'THIRD_PARTY_NOTICES.md',
     ...[
       'dexter-control',
-      'design-contract',
+      'designer',
+      'product-control',
       'web-research',
       'local-research',
       'simplify-review',
@@ -61,9 +64,10 @@ try {
     source: 'installed-deus',
   });
   assert.deepEqual(discovered.skills.map((skill) => skill.name).sort(), [
-    'design-contract',
+    'designer',
     'dexter-control',
     'local-research',
+    'product-control',
     'simplify-review',
     'web-research',
   ]);
@@ -71,13 +75,26 @@ try {
   const { default: extension } = await import(
     pathToFileURL(join(packageDir, 'dist/extension.js')).href
   );
+  const { default: designer } = await import(
+    pathToFileURL(join(packageDir, 'dist/designer.js')).href
+  );
+  const { default: board } = await import(pathToFileURL(join(packageDir, 'dist/board.js')).href);
   const tools = [];
   const hooks = [];
-  extension({ registerTool: (tool) => tools.push(tool), on: (name) => hooks.push(name) });
-  assert.deepEqual(
-    tools.map((tool) => tool.name),
-    ['deus_dexter_probe', 'deus_dexter_exec', 'deus_research_web'],
-  );
+  const register = { registerTool: (tool) => tools.push(tool), on: (name) => hooks.push(name) };
+  extension(register);
+  designer(register);
+  board(register);
+  assert.deepEqual(tools.map((tool) => tool.name).sort(), [
+    'deus_board_close',
+    'deus_board_plan',
+    'deus_board_snapshot',
+    'deus_design_check',
+    'deus_design_write',
+    'deus_dexter_exec',
+    'deus_dexter_probe',
+    'deus_research_web',
+  ]);
   assert.ok(!tools.some((tool) => tool.name.startsWith(`deus_${legacyProductName}_`)));
   assert.deepEqual(hooks, ['before_agent_start']);
   const fake = join(root, 'dexter-fake.mjs');
@@ -162,7 +179,7 @@ try {
   const { verifySkillIntegrity } = await import(
     pathToFileURL(join(packageDir, 'dist/resources.js')).href
   );
-  assert.equal(await verifySkillIntegrity(), 5);
+  assert.equal(await verifySkillIntegrity(), 6);
   console.log(
     JSON.stringify(
       {

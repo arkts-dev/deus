@@ -41,7 +41,9 @@
   },
   "pi": {
     "extensions": [
-      "dist/extension.js"
+      "dist/extension.js",
+      "dist/designer.js",
+      "dist/board.js"
     ],
     "skills": [
       "skills"

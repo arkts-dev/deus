@@ -20,7 +20,7 @@ The compiled `dist/` directory is committed because Pi installs this package dir
 
 The live fingerprint test is skipped in public CI because the compatible CLI is private. Maintainers with that CLI installed run `DEUS_TEST_PINNED_CLI=1 npm run check` to verify actual executable evidence. The package smoke uses a local fixture and does not claim to validate a real CLI.
 
-The five Pi skills are original Deus documents. See [docs/skills-ownership.md](docs/skills-ownership.md) for the digest update process. Persistent product artifacts belong under `.deus/` unless a user asks for another destination.
+The Pi skills are original Deus documents. See [docs/skills-ownership.md](docs/skills-ownership.md) for the digest update process. Persistent product artifacts belong under `.deus/` unless a user asks for another destination.
 
 ## Releasing a GitHub build
 

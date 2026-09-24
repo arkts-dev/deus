@@ -4,9 +4,9 @@ Deus 0.3 is an installable TypeScript Pi plugin package. Dexter alone supervises
 
 ## Layout
 
-- `src/`: Pi extension, pinned Dexter executable/argv adapter, foreground public web research, process and evidence guards.
+- `src/`: Pi extensions for the Dexter bridge, designer checks, and board control, plus the pinned Dexter executable/argv adapter, foreground public web research, and process and evidence guards.
 - `prompts/kernel.md`: minimal plugin system prompt.
-- `skills/`: five lazy-discovered Pi skills; do not copy them into managed product repositories.
+- `skills/`: lazy-discovered Pi skills; do not copy them into managed product repositories.
 - `.agents/skills/`: contributor workflows for this repository.
 - `tests/`: deterministic plugin and CLI contract tests.
 - `scripts/`: skill integrity, clean build, and installed-package smoke.
@@ -33,4 +33,4 @@ Web research is foreground and isolated from project files and Dexter. Retain pu
 
 ## Dependency and provenance
 
-Support exactly one inspected pinned Dexter CLI profile at a time. The current `dexter-bridge-b53f384` profile is temporary legacy-binary evidence, not a verified native Dexter profile. Replace its mapping and fingerprints from real Dexter evidence when Dexter becomes available; remove the bridge rather than adding compatibility shims. The five packaged skills are original Deus texts; keep their digests in `skills.lock.json` and use `.agents/skills/maintain-governance-resources/SKILL.md` for updates. The former manager grant and journal model was intentionally removed in 0.3.
+Support exactly one inspected pinned Dexter CLI profile at a time. The current `dexter-bridge-b53f384` profile is temporary legacy-binary evidence, not a verified native Dexter profile. Replace its mapping and fingerprints from real Dexter evidence when Dexter becomes available; remove the bridge rather than adding compatibility shims. The packaged skills are original Deus texts; keep their digests in `skills.lock.json` and use `.agents/skills/maintain-governance-resources/SKILL.md` for updates. The former manager grant and journal model was intentionally removed in 0.3.

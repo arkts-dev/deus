@@ -10,7 +10,8 @@ const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
 if (lock.schema !== 3 || lock.version !== '0.3.0') throw new Error('Unknown skills lock format');
 const expected = [
   'dexter-control',
-  'design-contract',
+  'designer',
+  'product-control',
   'web-research',
   'local-research',
   'simplify-review',
