@@ -31,6 +31,13 @@ export interface ProbeReport {
   verifiedCommit?: string;
   verifiedFingerprint?: string;
 }
+export function classifyDoctor(raw: Pick<ProcessResult, 'stdout' | 'stderr'>) {
+  const t = `${raw.stdout}\n${raw.stderr}`;
+  if (/^\s*FAIL\s+(?!model\b)/im.test(t)) return 'workspace-failed';
+  if (/^\s*OK\s+model\b/im.test(t)) return 'provider-ok';
+  if (/^\s*FAIL\s+model\b/im.test(t)) return 'agent-env-failed';
+  return /^\s*(OK|FAIL|WARN)\s+/im.test(t) ? 'absent' : undefined;
+}
 export interface ExecResult {
   command: DexterCommand;
   workspace: string;
@@ -38,6 +45,7 @@ export interface ExecResult {
   status: 'executed' | 'blocked_unknown_profile';
   raw?: ProcessResult;
   reasons: string[];
+  doctor?: ReturnType<typeof classifyDoctor>;
 }
 
 /**
@@ -113,6 +121,7 @@ export class DexterPlugin {
       status: 'executed',
       raw,
       reasons: probe.reasons,
+      doctor: command === 'doctor' && raw ? classifyDoctor(raw) : undefined,
     };
   }
 }
