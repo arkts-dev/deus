@@ -3,7 +3,7 @@ export declare const COMMANDS: readonly ["init", "submit", "issue", "run", "stat
 export type DexterCommand = (typeof COMMANDS)[number];
 export interface ProbeReport {
     executable: string;
-    profile: 'dexter-bridge-b53f384' | 'unknown';
+    profile: 'dexter-3fb8d375' | 'unknown';
     baselineRevision: string;
     supportedCommands: readonly DexterCommand[];
     diagnostics: Record<string, ProcessResult>;

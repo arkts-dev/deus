@@ -8,8 +8,42 @@ jobs:
   deterministic:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      PRIVATE_CLI_AVAILABLE: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Run public checks without private Dexter on fork PRs
+        if: env.PRIVATE_CLI_AVAILABLE != 'true'
+        run: echo 'DEUS_TEST_NO_CLI=1' >> "$GITHUB_ENV"
+      - name: Require Dexter read token
+        if: env.PRIVATE_CLI_AVAILABLE == 'true'
+        env:
+          DEXTER_READ_TOKEN: ${{ secrets.DEXTER_READ_TOKEN }}
+        run: |
+          if [ -z "$DEXTER_READ_TOKEN" ]; then
+            echo '::error::Set DEXTER_READ_TOKEN to a token with read access to arkts-dev/dexter.'
+            exit 1
+          fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: env.PRIVATE_CLI_AVAILABLE == 'true'
+        with:
+          repository: arkts-dev/dexter
+          ref: 3fb8d3753d57dbb28affd540b99b45ba9097e15f
+          path: upstream-dexter
+          token: ${{ secrets.DEXTER_READ_TOKEN }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        if: env.PRIVATE_CLI_AVAILABLE == 'true'
+        with:
+          python-version: '3.12'
+      - name: Install pinned Dexter CLI
+        if: env.PRIVATE_CLI_AVAILABLE == 'true'
+        run: |
+          test "$(git -C upstream-dexter rev-parse HEAD)" = '3fb8d3753d57dbb28affd540b99b45ba9097e15f'
+          python -m venv "$RUNNER_TEMP/dexter-venv"
+          "$RUNNER_TEMP/dexter-venv/bin/python" -m pip install --no-input --disable-pip-version-check ./upstream-dexter
+          echo "$RUNNER_TEMP/dexter-venv/bin" >> "$GITHUB_PATH"
+          echo "DEXTER_BIN=$RUNNER_TEMP/dexter-venv/bin/dexter" >> "$GITHUB_ENV"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.19.0'

@@ -12,7 +12,7 @@ const output = (value) => ({
 export default function extension(pi) {
     const clients = new Map();
     const dexter = (cwd) => {
-        const executable = process.env.DEXTER_BIN || 'arkestr';
+        const executable = process.env.DEXTER_BIN || 'dexter';
         const key = JSON.stringify([executable, cwd]);
         let client = clients.get(key);
         if (!client) {
@@ -29,7 +29,7 @@ export default function extension(pi) {
     pi.registerTool({
         name: 'deus_dexter_probe',
         label: 'Probe Dexter',
-        description: 'Inspect the pinned Dexter bridge version and command help fingerprints. Returns raw diagnostics.',
+        description: 'Inspect the pinned Dexter CLI version and command help fingerprints. Returns raw diagnostics.',
         parameters: Type.Object({}),
         async execute(_id, _p, signal, _update, ctx) {
             return output(await dexter(ctx.cwd).probe(signal));

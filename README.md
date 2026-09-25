@@ -8,7 +8,7 @@ The package contains Pi extensions and on-demand skills for design, product cont
 
 - Node.js 22.19 or newer, npm, Git, and Pi 0.85.1.
 - A model configured in Pi for agent-driven research and skills.
-- A supported Dexter-compatible CLI only for Dexter commands. The current bridge recognizes a pinned `arkestr` executable profile; that executable is not publicly available with this repository. The design and research capabilities do not require it.
+- The native Dexter CLI pinned to `arkts-dev/dexter` commit `3fb8d3753d57dbb28affd540b99b45ba9097e15f` for Dexter commands. The CLI is not included in this repository; design and research capabilities do not require it.
 
 Pi packages run with the user's system permissions. Review the extension and skill source before installing it.
 
@@ -42,9 +42,9 @@ Run deus_dexter_probe and explain whether the installed CLI matches the supporte
 
 Deus writes requested persistent product artifacts as tracked Markdown under `.deus/design/`, `.deus/research/`, or `.deus/handoffs/` by default. Research reports cite inspected sources and identify gaps. A successful worker exit or task-board status is never treated as proof that a product requirement was met.
 
-### Dexter bridge
+### Dexter CLI
 
-`deus_dexter_probe` reads version and command-help evidence. `deus_dexter_exec({command,args,workspace})` executes one command with an absolute workspace and no shell interpolation or automatic retry. Mutation is blocked when the executable fingerprint is unknown. Set `DEXTER_BIN` to an executable path to override the default `arkestr` lookup. The bridge currently supports only the pinned `dexter-bridge-b53f384` profile; a different or missing executable can be diagnosed but cannot run workspace commands. The private CLI is **not** included in the GitHub Release.
+`deus_dexter_probe` reads version and command-help evidence. `deus_dexter_exec({command,args,workspace})` executes one command with an absolute workspace and no shell interpolation or automatic retry. Every workspace command is blocked when the executable fingerprint is unknown. Set `DEXTER_BIN` to an executable path to override the default `dexter` lookup. The plugin supports only the pinned `dexter-3fb8d375` profile; a different or missing executable can be diagnosed but cannot run workspace commands. The separate `dexter-web` server and `config` command are outside this integration. The private CLI is **not** included in the GitHub Release.
 
 ### Public web research
 
@@ -68,5 +68,9 @@ npm run skills:verify
 npm run format:check
 npm run test:package
 ```
+
+Install the pinned Dexter CLI before running `npm run check` or `npm run test:package`. Put its executable on `PATH` for the installed-package smoke test; `DEXTER_BIN` can point to the same executable for the adapter tests.
+
+GitHub Actions needs a `DEXTER_READ_TOKEN` repository secret with read-only Contents access to `arkts-dev/dexter` for pushes and same-repository PRs. Fork PRs cannot receive that secret, so they run fixture checks with `DEUS_TEST_NO_CLI=1` and skip only the pinned executable fingerprint check.
 
 The package is licensed under [Apache-2.0](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md) for development and release steps, [SECURITY.md](SECURITY.md) for vulnerability reports, and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency notices. This repository is Git-distributed; `private: true` in `package.json` prevents accidental npm publication.
