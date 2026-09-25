@@ -122,8 +122,10 @@ try {
   const priorPath = process.env.PATH;
   const legacyEnvName = ['ARKESTR', 'BIN'].join('_');
   const priorLegacy = process.env[legacyEnvName];
+  const priorTrusted = process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
   process.env.DEXTER_BIN = fake;
   process.env[legacyEnvName] = join(root, 'must-not-be-used');
+  delete process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
   const invoke = async (name, parameters) => {
     const definition = tools.find((tool) => tool.name === name);
     assert.ok(definition, name);
@@ -135,7 +137,7 @@ try {
   try {
     const probe = await invoke('deus_dexter_probe', {});
     assert.equal(probe.profile, 'unknown');
-    assert.match(probe.diagnostics.version.stdout, /unknown fixture/);
+    assert.ok(probe.reasons.length > 0);
     const status = await invoke('deus_dexter_exec', {
       command: 'status',
       args: [],
@@ -150,10 +152,16 @@ try {
       workspace: root,
     });
     assert.equal(blocked.status, 'blocked_unknown_profile');
-    const calls = (await readFile(callsPath, 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line));
+    let calls = [];
+    try {
+      calls = (await readFile(callsPath, 'utf8'))
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
     assert.equal(calls.filter((argv) => argv[0] === 'status' && argv[1] !== '--help').length, 0);
     assert.equal(calls.filter((argv) => argv[0] === 'cmd' && argv[1] !== '--help').length, 0);
 
@@ -166,11 +174,15 @@ try {
       const defaultProbe = await invoke('deus_dexter_probe', {});
       assert.equal(defaultProbe.executable, 'dexter');
       assert.equal(defaultProbe.profile, 'unknown');
-      assert.match(defaultProbe.diagnostics.version.stdout, /unknown fixture/);
+      assert.ok(defaultProbe.reasons.length > 0);
     } else {
+      if (priorTrusted !== undefined) process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS = priorTrusted;
       const native = await invoke('deus_dexter_probe', {});
       assert.equal(native.executable, 'dexter');
-      assert.equal(native.profile, 'dexter-3fb8d375');
+      assert.equal(
+        native.profile,
+        process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS ? 'dexter-signed' : 'unknown',
+      );
     }
   } finally {
     if (priorPath === undefined) delete process.env.PATH;
@@ -179,6 +191,8 @@ try {
     else process.env.DEXTER_BIN = priorDexter;
     if (priorLegacy === undefined) delete process.env[legacyEnvName];
     else process.env[legacyEnvName] = priorLegacy;
+    if (priorTrusted === undefined) delete process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
+    else process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS = priorTrusted;
   }
   const installedSdk = await import(
     pathToFileURL(join(root, 'install/node_modules/@earendil-works/pi-coding-agent/dist/index.js'))

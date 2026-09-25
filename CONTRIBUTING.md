@@ -16,9 +16,9 @@ npm run build
 git diff --exit-code -- dist
 ```
 
-The compiled `dist/` directory is committed because Pi installs this package directly from Git. Rebuild and include its changes with any source edit. The pinned Dexter bridge accepts only its verified executable profile; do not add an alternate command route or guess a new CLI mapping from names alone.
+The compiled `dist/` directory is committed because Pi installs this package directly from Git. Rebuild and include its changes with any source edit. The signature-verifying Dexter bridge accepts only a trusted executable; do not add an alternate command route or guess a new CLI mapping from names alone.
 
-The live fingerprint test is skipped in public CI because the compatible CLI is private. Maintainers with that CLI installed run `DEUS_TEST_PINNED_CLI=1 npm run check` to verify actual executable evidence. The package smoke uses a local fixture and does not claim to validate a real CLI.
+The live signature test is skipped on fork PRs because the compatible CLI is private. Maintainers run `npm run test:package` with `DEUS_DEXTER_TRUSTED_FINGERPRINTS` set to verify actual signature evidence. The package smoke uses a local fixture and does not claim to validate a real CLI.
 
 The Pi skills are original Deus documents. See [docs/skills-ownership.md](docs/skills-ownership.md) for the digest update process. Persistent product artifacts belong under `.deus/` unless a user asks for another destination.
 

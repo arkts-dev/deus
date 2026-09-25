@@ -33,7 +33,7 @@ export default function extension(pi: ExtensionAPI) {
     name: 'deus_dexter_probe',
     label: 'Probe Dexter',
     description:
-      'Inspect the pinned Dexter CLI version and command help fingerprints. Returns raw diagnostics.',
+      'Inspect the installed Dexter CLI and verify its commit signature. Returns raw diagnostics.',
     parameters: Type.Object({}),
     async execute(_id, _p, signal, _update, ctx) {
       return output(await dexter(ctx.cwd).probe(signal));

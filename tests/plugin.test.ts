@@ -4,7 +4,6 @@ import { mkdtemp, readFile, writeFile, chmod, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DexterPlugin, COMMANDS, type ProbeReport } from '../src/dexter.js';
-import { PROFILE_SHA } from '../src/dexter-profile.js';
 import { runProcess } from '../src/process.js';
 import { fetchPublic, publicAddress } from '../src/web.js';
 import { researchWeb, searchWeb, webSearchProvider } from '../src/research.js';
@@ -12,58 +11,62 @@ import type { ModelRuntime } from '@earendil-works/pi-coding-agent';
 import { fileURLToPath } from 'node:url';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
+const SIGNED_PROFILE = 'dexter-signed' as const;
+const FAKE_COMMIT = 'f'.repeat(40);
 
-test(
-  'pinned installed CLI fingerprints every exposed command',
-  {
-    skip:
-      process.env.DEUS_TEST_NO_CLI === '1'
-        ? 'Private Dexter CLI is unavailable to fork PRs'
-        : false,
-  },
-  async () => {
+test('probe fails closed when no trusted fingerprints are configured', async () => {
+  const prior = process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
+  delete process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
+  try {
     const report = await new DexterPlugin(
       process.env.DEXTER_BIN || 'dexter',
       process.cwd(),
     ).probe();
-    assert.equal(report.profile, 'dexter-3fb8d375');
-    assert.deepEqual(report.supportedCommands, COMMANDS);
-    assert.equal(Object.keys(report.diagnostics).length, COMMANDS.length + 2);
-    assert.equal(report.baselineRevision, PROFILE_SHA);
-    assert.ok(!(COMMANDS as readonly string[]).includes('web'));
-    assert.ok(!(COMMANDS as readonly string[]).includes('config'));
-    assert.ok(!(COMMANDS as readonly string[]).includes('dexter-web'));
-    assert.match(report.diagnostics.help!.stdout, /config/);
-    assert.equal(report.diagnostics.config, undefined);
-    assert.equal(report.diagnostics.web, undefined);
-  },
-);
+    assert.equal(report.profile, 'unknown');
+    assert.deepEqual(report.supportedCommands, []);
+    assert.ok(report.reasons.some((reason) => reason.includes('DEUS_DEXTER_TRUSTED_FINGERPRINTS')));
+  } finally {
+    if (prior !== undefined) process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS = prior;
+  }
+  assert.ok(!(COMMANDS as readonly string[]).includes('web'));
+  assert.ok(!(COMMANDS as readonly string[]).includes('config'));
+  assert.ok(!(COMMANDS as readonly string[]).includes('dexter-web'));
+});
 
-test('unknown profile blocks every workspace command but retains raw probe diagnostics', async () => {
-  const plugin = new DexterPlugin(process.execPath, process.cwd());
-  const report = await plugin.probe();
-  assert.equal(report.profile, 'unknown');
-  assert.ok(report.diagnostics.version);
-  for (const command of COMMANDS) {
-    const result = await plugin.exec(command, [], '/tmp/workspace');
-    assert.equal(result.status, 'blocked_unknown_profile', command);
-    assert.equal(result.raw, undefined);
+test('unknown profile blocks every workspace command', async () => {
+  const priorTrusted = process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
+  delete process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
+  try {
+    const plugin = new DexterPlugin(process.execPath, process.cwd());
+    const report = await plugin.probe();
+    assert.equal(report.profile, 'unknown');
+    assert.ok(report.reasons.some((reason) => reason.includes('DEUS_DEXTER_TRUSTED_FINGERPRINTS')));
+    for (const command of COMMANDS) {
+      const result = await plugin.exec(command, [], '/tmp/workspace');
+      assert.equal(result.status, 'blocked_unknown_profile', command);
+      assert.equal(result.raw, undefined);
+    }
+  } finally {
+    if (priorTrusted !== undefined) process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS = priorTrusted;
   }
 });
 
-test('in-memory probe cache invalidates when executable changes', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'deus-probe-'));
+test('probe caches the verification result per commit', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'deus-cache-'));
   try {
     const executable = join(dir, 'fake.mjs');
-    await writeFile(executable, `#!${process.execPath}\nconsole.log('first');\n`);
+    await writeFile(executable, `#!${process.execPath}\n`);
     await chmod(executable, 0o755);
-    const plugin = new DexterPlugin(executable, dir);
-    const first = await plugin.probe();
-    assert.equal(await plugin.probe(), first);
-    await writeFile(executable, `#!${process.execPath}\nconsole.log('second version');\n`);
-    const second = await plugin.probe();
-    assert.notEqual(second, first);
-    assert.match(second.diagnostics.version!.stdout, /second version/);
+    const prior = process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
+    delete process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
+    try {
+      const plugin = new DexterPlugin(executable, dir);
+      const first = await plugin.probe();
+      assert.equal(first.profile, 'unknown');
+      assert.equal(await plugin.probe(), first);
+    } finally {
+      if (prior !== undefined) process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS = prior;
+    }
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -82,8 +85,8 @@ test('every command receives exact argv and workspace once without shell or retr
     const plugin = new DexterPlugin(executable, dir);
     plugin.probe = async (): Promise<ProbeReport> => ({
       executable,
-      profile: 'dexter-3fb8d375',
-      baselineRevision: PROFILE_SHA,
+      profile: SIGNED_PROFILE,
+      baselineRevision: FAKE_COMMIT,
       supportedCommands: COMMANDS,
       diagnostics: {},
       reasons: [],
@@ -124,8 +127,8 @@ test('signal termination and missing executable remain raw uncertain outcomes wi
     await chmod(executable, 0o755);
     const recognized: ProbeReport = {
       executable,
-      profile: 'dexter-3fb8d375',
-      baselineRevision: PROFILE_SHA,
+      profile: SIGNED_PROFILE,
+      baselineRevision: FAKE_COMMIT,
       supportedCommands: COMMANDS,
       diagnostics: {},
       reasons: [],
@@ -160,8 +163,8 @@ test('run output is bounded without terminating the worker', async () => {
     const plugin = new DexterPlugin(executable, dir);
     plugin.probe = async (): Promise<ProbeReport> => ({
       executable,
-      profile: 'dexter-3fb8d375',
-      baselineRevision: PROFILE_SHA,
+      profile: SIGNED_PROFILE,
+      baselineRevision: FAKE_COMMIT,
       supportedCommands: COMMANDS,
       diagnostics: {},
       reasons: [],
@@ -200,8 +203,8 @@ test('abort terminates a running Dexter command without retry', async () => {
     const plugin = new DexterPlugin(executable, dir);
     plugin.probe = async (): Promise<ProbeReport> => ({
       executable,
-      profile: 'dexter-3fb8d375',
-      baselineRevision: PROFILE_SHA,
+      profile: SIGNED_PROFILE,
+      baselineRevision: FAKE_COMMIT,
       supportedCommands: COMMANDS,
       diagnostics: {},
       reasons: [],

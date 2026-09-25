@@ -36,14 +36,14 @@ jobs:
         if: env.PRIVATE_CLI_AVAILABLE == 'true'
         with:
           python-version: '3.12'
-      - name: Install pinned Dexter CLI
+      - name: Install Dexter CLI
         if: env.PRIVATE_CLI_AVAILABLE == 'true'
         run: |
           test "$(git -C upstream-dexter rev-parse HEAD)" = '3fb8d3753d57dbb28affd540b99b45ba9097e15f'
-          python -m venv "$RUNNER_TEMP/dexter-venv"
-          "$RUNNER_TEMP/dexter-venv/bin/python" -m pip install --no-input --disable-pip-version-check ./upstream-dexter
-          echo "$RUNNER_TEMP/dexter-venv/bin" >> "$GITHUB_PATH"
-          echo "DEXTER_BIN=$RUNNER_TEMP/dexter-venv/bin/dexter" >> "$GITHUB_ENV"
+          python -m venv upstream-dexter/.venv
+          upstream-dexter/.venv/bin/python -m pip install --no-input --disable-pip-version-check -e ./upstream-dexter
+          echo "$GITHUB_WORKSPACE/upstream-dexter/.venv/bin" >> "$GITHUB_PATH"
+          echo "DEXTER_BIN=$GITHUB_WORKSPACE/upstream-dexter/.venv/bin/dexter" >> "$GITHUB_ENV"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.19.0'
@@ -53,4 +53,10 @@ jobs:
       - run: npm run format:check
       - run: npm run skills:verify
       - run: npm run test:package
+        env:
+          # GitHub's web-flow signing key, used for commits merged through the GitHub UI.
+          # Fingerprint verified against https://github.com/web-flow.gpg. A key rotation
+          # fails CI closed: re-verify the new key and update this value and the README
+          # example together.
+          DEUS_DEXTER_TRUSTED_FINGERPRINTS: 968479A1AFF927E37D1A566BB5690EEEBB952194
       - run: git diff --exit-code -- dist
