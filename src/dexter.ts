@@ -24,7 +24,7 @@ export const COMMANDS = [
 export type DexterCommand = (typeof COMMANDS)[number];
 export interface ProbeReport {
   executable: string;
-  profile: 'dexter-bridge-b53f384' | 'unknown';
+  profile: 'dexter-3fb8d375' | 'unknown';
   baselineRevision: string;
   supportedCommands: readonly DexterCommand[];
   diagnostics: Record<string, ProcessResult>;
@@ -60,7 +60,7 @@ async function executableIdentity(executable: string, cwd: string): Promise<stri
 export class DexterPlugin {
   private cached?: { identity: string; report: ProbeReport };
   constructor(
-    readonly executable = process.env.DEXTER_BIN || 'arkestr',
+    readonly executable = process.env.DEXTER_BIN || 'dexter',
     readonly cwd = process.cwd(),
   ) {}
 
@@ -86,7 +86,7 @@ export class DexterPlugin {
     }
     const report: ProbeReport = {
       executable: this.executable,
-      profile: reasons.length ? 'unknown' : 'dexter-bridge-b53f384',
+      profile: reasons.length ? 'unknown' : 'dexter-3fb8d375',
       baselineRevision: PROFILE_SHA,
       supportedCommands: reasons.length ? [] : COMMANDS,
       diagnostics,

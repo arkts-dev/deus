@@ -16,19 +16,25 @@ const repository = fileURLToPath(new URL('..', import.meta.url));
 test(
   'pinned installed CLI fingerprints every exposed command',
   {
-    skip: process.env.DEUS_TEST_PINNED_CLI === '1' ? false : 'Requires the pinned private CLI',
+    skip:
+      process.env.DEUS_TEST_NO_CLI === '1'
+        ? 'Private Dexter CLI is unavailable to fork PRs'
+        : false,
   },
   async () => {
     const report = await new DexterPlugin(
-      process.env.DEXTER_BIN || 'arkestr',
+      process.env.DEXTER_BIN || 'dexter',
       process.cwd(),
     ).probe();
-    assert.equal(report.profile, 'dexter-bridge-b53f384');
+    assert.equal(report.profile, 'dexter-3fb8d375');
     assert.deepEqual(report.supportedCommands, COMMANDS);
     assert.equal(Object.keys(report.diagnostics).length, COMMANDS.length + 2);
     assert.equal(report.baselineRevision, PROFILE_SHA);
     assert.ok(!(COMMANDS as readonly string[]).includes('web'));
-    assert.match(report.diagnostics.help!.stdout, /web/);
+    assert.ok(!(COMMANDS as readonly string[]).includes('config'));
+    assert.ok(!(COMMANDS as readonly string[]).includes('dexter-web'));
+    assert.match(report.diagnostics.help!.stdout, /config/);
+    assert.equal(report.diagnostics.config, undefined);
     assert.equal(report.diagnostics.web, undefined);
   },
 );
@@ -76,7 +82,7 @@ test('every command receives exact argv and workspace once without shell or retr
     const plugin = new DexterPlugin(executable, dir);
     plugin.probe = async (): Promise<ProbeReport> => ({
       executable,
-      profile: 'dexter-bridge-b53f384',
+      profile: 'dexter-3fb8d375',
       baselineRevision: PROFILE_SHA,
       supportedCommands: COMMANDS,
       diagnostics: {},
@@ -118,7 +124,7 @@ test('signal termination and missing executable remain raw uncertain outcomes wi
     await chmod(executable, 0o755);
     const recognized: ProbeReport = {
       executable,
-      profile: 'dexter-bridge-b53f384',
+      profile: 'dexter-3fb8d375',
       baselineRevision: PROFILE_SHA,
       supportedCommands: COMMANDS,
       diagnostics: {},
@@ -154,7 +160,7 @@ test('run output is bounded without terminating the worker', async () => {
     const plugin = new DexterPlugin(executable, dir);
     plugin.probe = async (): Promise<ProbeReport> => ({
       executable,
-      profile: 'dexter-bridge-b53f384',
+      profile: 'dexter-3fb8d375',
       baselineRevision: PROFILE_SHA,
       supportedCommands: COMMANDS,
       diagnostics: {},
@@ -194,7 +200,7 @@ test('abort terminates a running Dexter command without retry', async () => {
     const plugin = new DexterPlugin(executable, dir);
     plugin.probe = async (): Promise<ProbeReport> => ({
       executable,
-      profile: 'dexter-bridge-b53f384',
+      profile: 'dexter-3fb8d375',
       baselineRevision: PROFILE_SHA,
       supportedCommands: COMMANDS,
       diagnostics: {},

@@ -42,7 +42,7 @@ export class DexterPlugin {
     executable;
     cwd;
     cached;
-    constructor(executable = process.env.DEXTER_BIN || 'arkestr', cwd = process.cwd()) {
+    constructor(executable = process.env.DEXTER_BIN || 'dexter', cwd = process.cwd()) {
         this.executable = executable;
         this.cwd = cwd;
     }
@@ -69,7 +69,7 @@ export class DexterPlugin {
         }
         const report = {
             executable: this.executable,
-            profile: reasons.length ? 'unknown' : 'dexter-bridge-b53f384',
+            profile: reasons.length ? 'unknown' : 'dexter-3fb8d375',
             baselineRevision: PROFILE_SHA,
             supportedCommands: reasons.length ? [] : COMMANDS,
             diagnostics,

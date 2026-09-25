@@ -1,2 +1,2 @@
-export declare const PROFILE_SHA = "b53f3844071130eb68d94aba3900bac63511958e";
+export declare const PROFILE_SHA = "3fb8d3753d57dbb28affd540b99b45ba9097e15f";
 export declare const PROFILE_HELP_HASHES: Record<string, string>;

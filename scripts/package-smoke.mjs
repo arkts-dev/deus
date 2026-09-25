@@ -53,6 +53,20 @@ try {
   );
   assert.ok(succeeded(installed), installed.stderr);
   const packageDir = join(root, 'install/node_modules/deus-ex-machina');
+  for (const path of ['prompts/kernel.md', 'skills/dexter-control/SKILL.md']) {
+    const shippedGuidance = await readFile(join(packageDir, path), 'utf8');
+    assert.ok(
+      shippedGuidance.includes('`deus_board_*` tools are the explicit product-control exception'),
+      path,
+    );
+    assert.ok(
+      shippedGuidance.includes(
+        'Do not read, parse, or edit Dexter-owned state outside these tools',
+      ),
+      path,
+    );
+    assert.ok(shippedGuidance.includes('report the gap and leave Dexter state unchanged'), path);
+  }
   const manifest = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8'));
   assert.equal(manifest.version, '0.3.0');
   assert.equal(manifest.license, 'Apache-2.0');
@@ -144,14 +158,20 @@ try {
     assert.equal(calls.filter((argv) => argv[0] === 'cmd' && argv[1] !== '--help').length, 0);
 
     delete process.env.DEXTER_BIN;
-    const fakeDefault = join(root, 'arkestr');
-    await copyFile(fake, fakeDefault);
-    await chmod(fakeDefault, 0o755);
-    process.env.PATH = `${root}${delimiter}${priorPath ?? ''}`;
-    const bridge = await invoke('deus_dexter_probe', {});
-    assert.equal(bridge.executable, 'arkestr');
-    assert.equal(bridge.profile, 'unknown');
-    assert.match(bridge.diagnostics.version.stdout, /unknown fixture/);
+    if (process.env.DEUS_TEST_NO_CLI === '1') {
+      const fakeDefault = join(root, 'dexter');
+      await copyFile(fake, fakeDefault);
+      await chmod(fakeDefault, 0o755);
+      process.env.PATH = `${root}${delimiter}${priorPath ?? ''}`;
+      const defaultProbe = await invoke('deus_dexter_probe', {});
+      assert.equal(defaultProbe.executable, 'dexter');
+      assert.equal(defaultProbe.profile, 'unknown');
+      assert.match(defaultProbe.diagnostics.version.stdout, /unknown fixture/);
+    } else {
+      const native = await invoke('deus_dexter_probe', {});
+      assert.equal(native.executable, 'dexter');
+      assert.equal(native.profile, 'dexter-3fb8d375');
+    }
   } finally {
     if (priorPath === undefined) delete process.env.PATH;
     else process.env.PATH = priorPath;
@@ -189,7 +209,9 @@ try {
         tools: tools.map((tool) => tool.name),
         exercised: [
           'DEXTER_BIN precedence',
-          'legacy override ignored; default arkestr name resolves the PATH fixture',
+          process.env.DEUS_TEST_NO_CLI === '1'
+            ? 'legacy override ignored; default dexter name resolves the PATH fixture'
+            : 'legacy override ignored; native dexter discovered on PATH',
           'unknown-profile status blocked',
           'blocked cmd',
           'foreground no-model web',

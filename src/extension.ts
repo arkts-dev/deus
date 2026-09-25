@@ -14,7 +14,7 @@ const output = (value: unknown) => ({
 export default function extension(pi: ExtensionAPI) {
   const clients = new Map<string, DexterPlugin>();
   const dexter = (cwd: string) => {
-    const executable = process.env.DEXTER_BIN || 'arkestr';
+    const executable = process.env.DEXTER_BIN || 'dexter';
     const key = JSON.stringify([executable, cwd]);
     let client = clients.get(key);
     if (!client) {
@@ -33,7 +33,7 @@ export default function extension(pi: ExtensionAPI) {
     name: 'deus_dexter_probe',
     label: 'Probe Dexter',
     description:
-      'Inspect the pinned Dexter bridge version and command help fingerprints. Returns raw diagnostics.',
+      'Inspect the pinned Dexter CLI version and command help fingerprints. Returns raw diagnostics.',
     parameters: Type.Object({}),
     async execute(_id, _p, signal, _update, ctx) {
       return output(await dexter(ctx.cwd).probe(signal));
