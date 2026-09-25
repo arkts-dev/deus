@@ -1,7 +1,6 @@
-import { access, realpath, stat } from 'node:fs/promises';
-import { delimiter, isAbsolute, join } from 'node:path';
-import { digest, runProcess, succeeded } from './process.js';
-import { PROFILE_HELP_HASHES, PROFILE_SHA } from './dexter-profile.js';
+import { isAbsolute } from 'node:path';
+import { runProcess } from './process.js';
+import { verifyCommitSignature } from './dexter-signature.js';
 export const COMMANDS = [
     'init',
     'submit',
@@ -20,24 +19,10 @@ export const COMMANDS = [
     'relink-issue',
     'cmd',
 ];
-async function executableIdentity(executable, cwd) {
-    const candidates = executable.includes('/')
-        ? [isAbsolute(executable) ? executable : join(cwd, executable)]
-        : (process.env.PATH ?? '').split(delimiter).map((dir) => join(dir || cwd, executable));
-    for (const candidate of candidates) {
-        try {
-            await access(candidate);
-            const path = await realpath(candidate);
-            const s = await stat(path);
-            return `${path}:${s.dev}:${s.ino}:${s.size}:${s.mtimeMs}:${s.ctimeMs}`;
-        }
-        catch {
-            /* inspect next PATH entry */
-        }
-    }
-    return `missing:${executable}:${process.env.PATH ?? ''}`;
-}
-/** No disk cache: a replaced executable always gets new help/version evidence. */
+/**
+ * Trust is established solely by verifying the installed Dexter commit's GPG signature
+ * against DEUS_DEXTER_TRUSTED_FINGERPRINTS. The report is cached per commit SHA.
+ */
 export class DexterPlugin {
     executable;
     cwd;
@@ -47,36 +32,30 @@ export class DexterPlugin {
         this.cwd = cwd;
     }
     async probe(signal) {
-        const identity = await executableIdentity(this.executable, this.cwd);
-        if (this.cached?.identity === identity)
+        const result = await verifyCommitSignature(this.executable, this.cwd);
+        const cacheKey = result.commit ? `commit:${result.commit}` : `error:${result.error}`;
+        if (this.cached?.identity === cacheKey)
             return this.cached.report;
-        const diagnostics = {};
-        diagnostics.version = await runProcess(this.executable, ['--version'], {
-            cwd: this.cwd,
-            signal,
-        });
-        diagnostics.help = await runProcess(this.executable, ['--help'], { cwd: this.cwd, signal });
-        const reasons = [];
-        for (const [name, expected] of Object.entries(PROFILE_HELP_HASHES)) {
-            if (name !== 'version' && name !== 'help')
-                diagnostics[name] = await runProcess(this.executable, [name, '--help'], {
-                    cwd: this.cwd,
-                    signal,
-                });
-            const actual = diagnostics[name];
-            if (!succeeded(actual) || digest(actual.stdout) !== expected)
-                reasons.push(`Unrecognized ${name} help/version fingerprint`);
+        const diagnostics = result.diagnostics;
+        if (!result.error) {
+            diagnostics.version = await runProcess(this.executable, ['--version'], {
+                cwd: this.cwd,
+                signal,
+            });
         }
         const report = {
             executable: this.executable,
-            profile: reasons.length ? 'unknown' : 'dexter-3fb8d375',
-            baselineRevision: PROFILE_SHA,
-            supportedCommands: reasons.length ? [] : COMMANDS,
+            profile: result.error ? 'unknown' : 'dexter-signed',
+            baselineRevision: result.commit,
+            supportedCommands: result.error ? [] : COMMANDS,
             diagnostics,
-            reasons,
+            reasons: result.error ? [result.error] : [],
+            verifiedCommit: result.commit || undefined,
+            verifiedFingerprint: result.fingerprint ?? undefined,
         };
-        if (!Object.values(diagnostics).some((result) => result.cancelled))
-            this.cached = { identity, report };
+        if (!Object.values(diagnostics).some((r) => r.cancelled)) {
+            this.cached = { identity: cacheKey, report };
+        }
         return report;
     }
     async exec(command, args, workspace, signal) {

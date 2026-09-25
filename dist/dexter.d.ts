@@ -3,11 +3,13 @@ export declare const COMMANDS: readonly ["init", "submit", "issue", "run", "stat
 export type DexterCommand = (typeof COMMANDS)[number];
 export interface ProbeReport {
     executable: string;
-    profile: 'dexter-3fb8d375' | 'unknown';
+    profile: 'dexter-signed' | 'unknown';
     baselineRevision: string;
     supportedCommands: readonly DexterCommand[];
     diagnostics: Record<string, ProcessResult>;
     reasons: string[];
+    verifiedCommit?: string;
+    verifiedFingerprint?: string;
 }
 export interface ExecResult {
     command: DexterCommand;
@@ -17,7 +19,10 @@ export interface ExecResult {
     raw?: ProcessResult;
     reasons: string[];
 }
-/** No disk cache: a replaced executable always gets new help/version evidence. */
+/**
+ * Trust is established solely by verifying the installed Dexter commit's GPG signature
+ * against DEUS_DEXTER_TRUSTED_FINGERPRINTS. The report is cached per commit SHA.
+ */
 export declare class DexterPlugin {
     readonly executable: string;
     readonly cwd: string;

@@ -8,7 +8,7 @@ The package contains Pi extensions and on-demand skills for design, product cont
 
 - Node.js 22.19 or newer, npm, Git, and Pi 0.85.1.
 - A model configured in Pi for agent-driven research and skills.
-- The native Dexter CLI pinned to `arkts-dev/dexter` commit `3fb8d3753d57dbb28affd540b99b45ba9097e15f` for Dexter commands. The CLI is not included in this repository; design and research capabilities do not require it.
+- The native Dexter CLI, from a checkout whose commits are signed by a trusted GPG key (see [Dexter CLI](#dexter-cli)). The CLI is not included in this repository; design and research capabilities do not require it.
 
 Pi packages run with the user's system permissions. Review the extension and skill source before installing it.
 
@@ -44,7 +44,30 @@ Deus writes requested persistent product artifacts as tracked Markdown under `.d
 
 ### Dexter CLI
 
-`deus_dexter_probe` reads version and command-help evidence. `deus_dexter_exec({command,args,workspace})` executes one command with an absolute workspace and no shell interpolation or automatic retry. Every workspace command is blocked when the executable fingerprint is unknown. Set `DEXTER_BIN` to an executable path to override the default `dexter` lookup. The plugin supports only the pinned `dexter-3fb8d375` profile; a different or missing executable can be diagnosed but cannot run workspace commands. The separate `dexter-web` server and `config` command are outside this integration. The private CLI is **not** included in the GitHub Release.
+`deus_dexter_probe` verifies the installed Dexter CLI's commit signature and reads version evidence. `deus_dexter_exec({command,args,workspace})` executes one command with an absolute workspace and no shell interpolation or automatic retry. Every workspace command is blocked when verification fails. Set `DEXTER_BIN` to an executable path to override the default `dexter` lookup.
+
+Set `DEUS_DEXTER_TRUSTED_FINGERPRINTS` to one or more comma-separated full GPG fingerprints. The plugin then verifies (`git verify-commit`) that the installed Dexter commit is signed by one of those keys; the recognized profile is `dexter-signed`, `baselineRevision` is the verified commit SHA, and the probe also reports `verifiedCommit` and `verifiedFingerprint`. The Dexter checkout is located by walking up from the resolved `dexter` executable. Without a matching signature the profile is `unknown` and no workspace command runs.
+
+#### Determining the trusted fingerprint
+
+`DEUS_DEXTER_TRUSTED_FINGERPRINTS` is the **full fingerprint of the key that signs the Dexter commits you run**, verified out-of-band — not guessed, and not trusted merely because the repo printed it.
+
+```sh
+# Who signed the commit you are on?
+git -C /path/to/dexter log --show-signature -1
+#   → "Primary key fingerprint: 9684 79A1 AFF9 27E3 7D1A  566B B569 0EEE BB95 2194"
+
+# Confirm that key belongs to the signer via a source you independently trust,
+# e.g. GitHub's published web-flow key for commits merged through GitHub:
+curl -sL https://github.com/web-flow.gpg | gpg --show-keys
+
+# Pin the full fingerprint (no spaces). Multiple trusted keys: comma-separated.
+export DEUS_DEXTER_TRUSTED_FINGERPRINTS=968479A1AFF927E37D1A566BB5690EEEBB952194
+```
+
+Always use the full 40-character fingerprint, never the short key ID. For commits signed by an individual maintainer rather than GitHub, confirm that maintainer's published key instead.
+
+The separate `dexter-web` server and `config` command are outside this integration. The private CLI is **not** included in the GitHub Release.
 
 ### Public web research
 
@@ -69,8 +92,8 @@ npm run format:check
 npm run test:package
 ```
 
-Install the pinned Dexter CLI before running `npm run check` or `npm run test:package`. Put its executable on `PATH` for the installed-package smoke test; `DEXTER_BIN` can point to the same executable for the adapter tests.
+Install Dexter before running `npm run check` or `npm run test:package`. Put its executable on `PATH` for the installed-package smoke test; `DEXTER_BIN` can point to the same executable for the adapter tests.
 
-GitHub Actions needs a `DEXTER_READ_TOKEN` repository secret with read-only Contents access to `arkts-dev/dexter` for pushes and same-repository PRs. Fork PRs cannot receive that secret, so they run fixture checks with `DEUS_TEST_NO_CLI=1` and skip only the pinned executable fingerprint check.
+GitHub Actions needs a `DEXTER_READ_TOKEN` repository secret with read-only Contents access to `arkts-dev/dexter` for pushes and same-repository PRs. Fork PRs cannot receive that secret, so they run fixture checks with `DEUS_TEST_NO_CLI=1` and skip only the live signature check.
 
 The package is licensed under [Apache-2.0](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md) for development and release steps, [SECURITY.md](SECURITY.md) for vulnerability reports, and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency notices. This repository is Git-distributed; `private: true` in `package.json` prevents accidental npm publication.
