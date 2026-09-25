@@ -11,6 +11,7 @@ export interface ProbeReport {
     verifiedCommit?: string;
     verifiedFingerprint?: string;
 }
+export declare function classifyDoctor(raw: Pick<ProcessResult, 'stdout' | 'stderr'>): "workspace-failed" | "provider-ok" | "agent-env-failed" | "absent" | undefined;
 export interface ExecResult {
     command: DexterCommand;
     workspace: string;
@@ -18,6 +19,7 @@ export interface ExecResult {
     status: 'executed' | 'blocked_unknown_profile';
     raw?: ProcessResult;
     reasons: string[];
+    doctor?: ReturnType<typeof classifyDoctor>;
 }
 /**
  * Trust is established solely by verifying the installed Dexter commit's GPG signature

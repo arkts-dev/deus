@@ -19,6 +19,16 @@ export const COMMANDS = [
     'relink-issue',
     'cmd',
 ];
+export function classifyDoctor(raw) {
+    const t = `${raw.stdout}\n${raw.stderr}`;
+    if (/^\s*FAIL\s+(?!model\b)/im.test(t))
+        return 'workspace-failed';
+    if (/^\s*OK\s+model\b/im.test(t))
+        return 'provider-ok';
+    if (/^\s*FAIL\s+model\b/im.test(t))
+        return 'agent-env-failed';
+    return /^\s*(OK|FAIL|WARN)\s+/im.test(t) ? 'absent' : undefined;
+}
 /**
  * Trust is established solely by verifying the installed Dexter commit's GPG signature
  * against DEUS_DEXTER_TRUSTED_FINGERPRINTS. The report is cached per commit SHA.
@@ -88,6 +98,7 @@ export class DexterPlugin {
             status: 'executed',
             raw,
             reasons: probe.reasons,
+            doctor: command === 'doctor' && raw ? classifyDoctor(raw) : undefined,
         };
     }
 }

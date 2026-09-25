@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { mkdtemp, readFile, writeFile, chmod, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DexterPlugin, COMMANDS, type ProbeReport } from '../src/dexter.js';
+import { DexterPlugin, COMMANDS, classifyDoctor, type ProbeReport } from '../src/dexter.js';
 import { runProcess } from '../src/process.js';
 import { fetchPublic, publicAddress } from '../src/web.js';
 import { researchWeb, searchWeb, webSearchProvider } from '../src/research.js';
@@ -177,6 +177,15 @@ test('run output is bounded without terminating the worker', async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('doctor output separates the env-sensitive provider probe from workspace checks', () => {
+  const m = (stdout: string) => ({ stdout, stderr: '' });
+  assert.equal(classifyDoctor(m('  FAIL model\n')), 'agent-env-failed');
+  assert.equal(classifyDoctor(m('  FAIL artifact\n')), 'workspace-failed');
+  assert.equal(classifyDoctor(m('  OK model\n')), 'provider-ok');
+  assert.equal(classifyDoctor(m('  OK verification command\n')), 'absent');
+  assert.equal(classifyDoctor(m('unrelated')), undefined);
 });
 
 test('an explicit unlimited process deadline lets a delayed command finish', async () => {
