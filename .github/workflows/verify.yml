@@ -28,7 +28,6 @@ jobs:
         if: env.PRIVATE_CLI_AVAILABLE == 'true'
         with:
           repository: arkts-dev/dexter
-          ref: 3fb8d3753d57dbb28affd540b99b45ba9097e15f
           path: upstream-dexter
           token: ${{ secrets.DEXTER_READ_TOKEN }}
           persist-credentials: false
@@ -39,7 +38,7 @@ jobs:
       - name: Install Dexter CLI
         if: env.PRIVATE_CLI_AVAILABLE == 'true'
         run: |
-          test "$(git -C upstream-dexter rev-parse HEAD)" = '3fb8d3753d57dbb28affd540b99b45ba9097e15f'
+          echo "dexter tested at $(git -C upstream-dexter rev-parse HEAD)"
           python -m venv upstream-dexter/.venv
           upstream-dexter/.venv/bin/python -m pip install --no-input --disable-pip-version-check -e ./upstream-dexter
           echo "$GITHUB_WORKSPACE/upstream-dexter/.venv/bin" >> "$GITHUB_PATH"
