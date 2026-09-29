@@ -60,12 +60,14 @@ export async function loadBoard(workspace) {
             file,
         });
     }
-    const closed = new Set(issues.filter(terminal).map((issue) => issue.id));
+    const satisfied = new Set(issues.filter((issue) => issue.status === 'closed').map((issue) => issue.id));
     const ready = issues
-        .filter((issue) => !terminal(issue) && READY.has(issue.status) && issue.deps.every((dep) => closed.has(dep)))
+        .filter((issue) => !terminal(issue) &&
+        READY.has(issue.status) &&
+        issue.deps.every((dep) => satisfied.has(dep)))
         .map((issue) => issue.id);
     const blocked = issues
-        .filter((issue) => !terminal(issue) && issue.deps.some((dep) => !closed.has(dep)))
+        .filter((issue) => !terminal(issue) && issue.deps.some((dep) => !satisfied.has(dep)))
         .map((issue) => issue.id);
     return {
         workspace,
@@ -162,7 +164,7 @@ export function planBoard(board) {
         if (!terminal(issue) && issue.breakdown && !board.candidates.includes(issue.breakdown))
             reports.push(`raw edit required for ${issue.id}: dangling breakdown_candidate_id ${issue.breakdown}`);
     const closedAfter = new Set([
-        ...board.issues.filter(terminal).map((issue) => issue.id),
+        ...board.issues.filter((issue) => issue.status === 'closed').map((issue) => issue.id),
         ...closeIds,
     ]);
     const after = board.issues.filter((issue) => !terminal(issue) &&
