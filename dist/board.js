@@ -204,12 +204,16 @@ const output = (value) => ({
 export default function board(pi) {
     const workspace = Type.String({ description: 'Absolute Dexter workspace path' });
     pi.registerTool({
-        name: 'deus_board_snapshot',
-        label: 'Snapshot board',
-        description: 'Parse the forge into a typed board: the dependency frontier, claims, and the dispatchable set.',
+        name: 'deus_board_live',
+        label: 'Live board',
+        description: 'Parse the forge into a typed board: the dependency frontier, claims, and the dispatchable set. Lists only non-terminal issues; terminal issues remain reachable through dexter status and show.',
         parameters: Type.Object({ workspace }),
         async execute(_id, p) {
-            return output(await loadBoard(p.workspace));
+            const { issues, ...board } = await loadBoard(p.workspace);
+            return output({
+                ...board,
+                issues: issues.filter((issue) => !terminal(issue)).map(({ body, file, ...rest }) => rest),
+            });
         },
     });
     pi.registerTool({

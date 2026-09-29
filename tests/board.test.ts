@@ -151,3 +151,30 @@ test('the close tool enforces the approval gate', async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('the live board lists only non-terminal issues without bodies', async () => {
+  const root = await fixture();
+  try {
+    await applyClose(root, await loadBoard(root), 'ISSUE-0002', 'NOISE');
+    const tools = new Map<string, { execute: (...args: unknown[]) => Promise<unknown> }>();
+    boardTool({
+      registerTool: (tool: { name: string }) => tools.set(tool.name, tool as never),
+    } as never);
+    const snapshot = tools.get('deus_board_live')!;
+    const result = (await snapshot.execute(
+      'test',
+      { workspace: root },
+      undefined,
+      undefined,
+      {},
+    )) as { content: { text: string }[] };
+    const live = JSON.parse(result.content[0]!.text);
+    assert.deepEqual(
+      live.issues.map((issue: { id: string }) => issue.id),
+      ['ISSUE-0001', 'ISSUE-0003', 'ISSUE-0004'],
+    );
+    assert.ok(live.issues.every((issue: object) => !('body' in issue) && !('file' in issue)));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

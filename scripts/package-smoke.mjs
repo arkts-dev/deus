@@ -101,8 +101,8 @@ try {
   board(register);
   assert.deepEqual(tools.map((tool) => tool.name).sort(), [
     'deus_board_close',
+    'deus_board_live',
     'deus_board_plan',
-    'deus_board_snapshot',
     'deus_design_check',
     'deus_design_write',
     'deus_dexter_exec',
