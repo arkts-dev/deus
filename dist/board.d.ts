@@ -20,6 +20,7 @@ export interface Board {
     workspace: string;
     issues: Issue[];
     claims: string[];
+    candidates: string[];
     ready: string[];
     unclaimed: string[];
     blocked: string[];

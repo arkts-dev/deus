@@ -152,6 +152,32 @@ test('the close tool enforces the approval gate', async () => {
   }
 });
 
+test('plan reports a breakdown pointer only when its candidate is absent', async () => {
+  const root = await fixture();
+  try {
+    const issuePath = join(root, 'forge', 'issues', 'ISSUE-0002-noise.md');
+    await writeFile(
+      issuePath,
+      (await readFile(issuePath, 'utf8')).replace(
+        'breakdown_candidate_id: null',
+        'breakdown_candidate_id: BC-000009',
+      ),
+    );
+    const pointerReports = async () =>
+      planBoard(await loadBoard(root)).reports.filter((report) =>
+        report.includes('breakdown_candidate_id'),
+      );
+    assert.deepEqual(await pointerReports(), [
+      'raw edit required for ISSUE-0002: dangling breakdown_candidate_id BC-000009',
+    ]);
+    await mkdir(join(root, 'forge', '.candidates'), { recursive: true });
+    await writeFile(join(root, 'forge', '.candidates', 'BC-000009.md'), 'status: materialized\n');
+    assert.deepEqual(await pointerReports(), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('the live board lists only non-terminal issues without bodies', async () => {
   const root = await fixture();
   try {
