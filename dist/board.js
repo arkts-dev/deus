@@ -6,6 +6,7 @@ import { banned, field, frontmatter, list, terms } from './governance.js';
 const TERMINAL = new Set(['closed', 'rejected']);
 const READY = new Set(['open', 'ready']);
 const CLAIM = /^issue_(.+)\.lock$/;
+const CANDIDATE = /^(BC-\d+)\.md$/;
 const none = (value) => (!value || value === 'null' || value === '~' ? null : value);
 const terminal = (issue) => TERMINAL.has(issue.status);
 export async function loadBoard(workspace) {
@@ -27,6 +28,15 @@ export async function loadBoard(workspace) {
     }
     catch {
         claims = [];
+    }
+    let candidates = [];
+    try {
+        candidates = (await readdir(join(workspace, 'forge', '.candidates')))
+            .map((file) => CANDIDATE.exec(file)?.[1])
+            .filter((id) => Boolean(id));
+    }
+    catch {
+        candidates = [];
     }
     const claimed = new Set(claims);
     const issues = [];
@@ -61,6 +71,7 @@ export async function loadBoard(workspace) {
         workspace,
         issues,
         claims,
+        candidates,
         ready,
         unclaimed: ready.filter((id) => !claimed.has(id)),
         blocked,
@@ -148,8 +159,8 @@ export function planBoard(board) {
     }
     const reports = closes.flatMap((close) => close.errors.map((error) => `raw edit required for ${close.issue}: ${error}`));
     for (const issue of board.issues)
-        if (!terminal(issue) && issue.breakdown)
-            reports.push(`raw edit required for ${issue.id}: stale breakdown_candidate_id`);
+        if (!terminal(issue) && issue.breakdown && !board.candidates.includes(issue.breakdown))
+            reports.push(`raw edit required for ${issue.id}: dangling breakdown_candidate_id ${issue.breakdown}`);
     const closedAfter = new Set([
         ...board.issues.filter(terminal).map((issue) => issue.id),
         ...closeIds,
