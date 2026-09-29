@@ -345,7 +345,7 @@ test('minimal prompt and lazy skills describe tracked artifact contracts', async
   assert.match(productControl, /\bPRODUCT\b/);
   assert.match(productControl, /\bNOISE\b/);
   assert.match(productControl, /\bDEAD\b/);
-  assert.match(productControl, /deus_board_snapshot/);
+  assert.match(productControl, /deus_board_live/);
   assert.match(productControl, /deus_board_plan/);
   assert.match(productControl, /deus_board_close/);
   assert.match(productControl, /Never run the `run` drain/i);
