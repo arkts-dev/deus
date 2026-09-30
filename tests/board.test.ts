@@ -152,6 +152,26 @@ test('the close tool enforces the approval gate', async () => {
   }
 });
 
+test('a rejected dependency does not satisfy readiness', async () => {
+  const root = await fixture();
+  try {
+    const path = join(root, 'forge', 'issues', 'ISSUE-0002-noise.md');
+    await writeFile(
+      path,
+      (await readFile(path, 'utf8')).replace(/^status: open$/m, 'status: rejected'),
+    );
+    const board = await loadBoard(root);
+    assert.ok(board.blocked.includes('ISSUE-0003'));
+    assert.equal(board.ready.includes('ISSUE-0003'), false);
+    assert.equal(
+      planBoard(board).commands.some((command) => command.argv[0] === 'ISSUE-0003'),
+      false,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('plan reports a breakdown pointer only when its candidate is absent', async () => {
   const root = await fixture();
   try {
