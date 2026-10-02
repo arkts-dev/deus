@@ -327,18 +327,19 @@ test('minimal prompt and lazy skills describe tracked artifact contracts', async
     assert.match(source, /\.deus\//);
   }
   const designer = await readFile(join(repository, 'skills/designer/SKILL.md'), 'utf8');
+  assert.ok(designer.trim().split(/\s+/).length < 303, 'designer must stay shorter than its base');
   assert.match(designer, /never amend/i);
   assert.match(designer, /never write inside `fs\/` or `forge\/`/i);
   assert.match(designer, /deus_design_check/);
   assert.match(designer, /deus_design_write/);
   assert.match(designer, /Reuse settled answers/);
-  assert.match(designer, /Ask only unresolved questions/);
-  assert.match(designer, /Ask dependent questions after their prerequisites are settled/);
-  assert.match(designer, /Finding inspectable facts is the agent's job/);
+  assert.match(designer, /Ask only consequential unresolved questions/);
+  assert.match(designer, /after their prerequisites are settled/);
+  assert.match(designer, /Investigate inspectable facts yourself/);
   assert.match(designer, /designer does not implement or prototype/);
   assert.match(designer, /user confirmation before writing/);
-  assert.match(designer, /Confirmation of a destination alone is not confirmation of the design/);
-  assert.match(designer, /Quantitative performance targets/);
+  assert.match(designer, /destination approval alone is insufficient/);
+  assert.match(designer, /Allow quantitative requirements/);
   assert.match(designer, /review every warning/);
   assert.doesNotMatch(designer, /non-derivability proof|only cutting makes|free of counters/);
   const simplify = await readFile(join(repository, 'skills/simplify-review/SKILL.md'), 'utf8');

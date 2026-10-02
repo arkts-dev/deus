@@ -40,8 +40,6 @@ Research the public documentation for this API and distinguish evidence from inf
 Run deus_dexter_probe and explain whether the installed CLI matches the supported profile.
 ```
 
-Designer investigates facts, asks only consequential unresolved questions, and confirms material decisions before writing. Experiment-dependent choices need explicit authorization or an agreed deferral; the skill does not prototype. Its checker validates document structure and flags possible contradictions for review, not semantic correctness or user agreement. Product-relevant measurements and technical vocabulary are allowed.
-
 Deus writes requested persistent product artifacts as tracked Markdown under `.deus/design/`, `.deus/research/`, or `.deus/handoffs/` by default. Research reports cite inspected sources and identify gaps. A successful worker exit or task-board status is never treated as proof that a product requirement was met.
 
 ### Dexter CLI
