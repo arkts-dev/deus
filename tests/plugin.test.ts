@@ -341,7 +341,7 @@ test('minimal prompt and lazy skills describe tracked artifact contracts', async
   assert.match(designer, /destination approval alone is insufficient/);
   assert.match(designer, /Allow quantitative requirements/);
   assert.match(designer, /review every warning/);
-  assert.doesNotMatch(designer, /non-derivability proof|only cutting makes|free of counters/);
+  assert.match(designer, /stop questioning[\s\S]*experiment[\s\S]*Resume from observations/);
   const simplify = await readFile(join(repository, 'skills/simplify-review/SKILL.md'), 'utf8');
   assert.match(simplify, /Review project source read-only/);
   assert.match(simplify, /Do not call `deus_dexter_probe` or `deus_dexter_exec`/);
