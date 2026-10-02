@@ -331,6 +331,16 @@ test('minimal prompt and lazy skills describe tracked artifact contracts', async
   assert.match(designer, /never write inside `fs\/` or `forge\/`/i);
   assert.match(designer, /deus_design_check/);
   assert.match(designer, /deus_design_write/);
+  assert.match(designer, /Reuse settled answers/);
+  assert.match(designer, /Ask only unresolved questions/);
+  assert.match(designer, /Ask dependent questions after their prerequisites are settled/);
+  assert.match(designer, /Finding inspectable facts is the agent's job/);
+  assert.match(designer, /designer does not implement or prototype/);
+  assert.match(designer, /user confirmation before writing/);
+  assert.match(designer, /Confirmation of a destination alone is not confirmation of the design/);
+  assert.match(designer, /Quantitative performance targets/);
+  assert.match(designer, /review every warning/);
+  assert.doesNotMatch(designer, /non-derivability proof|only cutting makes|free of counters/);
   const simplify = await readFile(join(repository, 'skills/simplify-review/SKILL.md'), 'utf8');
   assert.match(simplify, /Review project source read-only/);
   assert.match(simplify, /Do not call `deus_dexter_probe` or `deus_dexter_exec`/);

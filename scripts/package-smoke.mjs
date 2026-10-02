@@ -135,6 +135,43 @@ try {
     return JSON.parse(response.content[0].text);
   };
   try {
+    const design = await invoke('deus_design_check', {
+      path: '.deus/design/performance.md',
+      content: `---
+kind: design
+id: performance
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+status: draft
+references:
+  - tools/gate-manifest.sh
+problem: Reduce latency by 25% without reducing coverage.
+options:
+  - Reuse compiled artifacts.
+decision: Cache builds, not test verdicts.
+acceptance:
+  - Exit codes and behavioral assertions remain unchanged.
+---
+## Objective
+Reduce test latency.
+## Invariants
+Every requested scenario executes.
+## Boundaries
+Compiler semantics remain unchanged.
+## Decisions
+Reuse immutable build products.
+## Acceptance
+Cold and warm execution times improve.
+## References
+tools/gate-manifest.sh
+`,
+    });
+    assert.equal(design.ok, true);
+    assert.deepEqual(design.errors, []);
+    assert.deepEqual(design.warnings, []);
+    const shippedDesigner = await readFile(join(packageDir, 'skills/designer/SKILL.md'), 'utf8');
+    assert.ok(shippedDesigner.includes('user confirmation before writing'));
+    assert.ok(shippedDesigner.includes('designer does not implement or prototype'));
     const probe = await invoke('deus_dexter_probe', {});
     assert.equal(probe.profile, 'unknown');
     assert.ok(probe.reasons.length > 0);
@@ -222,6 +259,7 @@ try {
         files: paths.length,
         tools: tools.map((tool) => tool.name),
         exercised: [
+          'designer product constraints accepted and confirmation guidance shipped',
           'DEXTER_BIN precedence',
           process.env.DEUS_TEST_NO_CLI === '1'
             ? 'legacy override ignored; default dexter name resolves the PATH fixture'
