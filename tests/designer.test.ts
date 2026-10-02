@@ -52,22 +52,43 @@ test('designer paths stay workspace-relative and out of fs/ and forge/', () => {
     assert.throws(() => designPath('/w', path));
 });
 
-test('a valid design passes and each violated invariant fails', () => {
+test('a valid design passes and structural violations fail', () => {
   assert.equal(designCheck('/w', 'design/a.md', VALID).ok, true);
   const bad = [
     '# no front matter',
     VALID.replace('kind: design', 'kind: note'),
     VALID.replace('status: draft', 'status: draft\ncoverage: 100'),
-    VALID.replace('The parser is unchanged.', 'Coverage is 100%.'),
-    VALID.replace('problem: The compiler accepts invalid programs.', 'problem: Coverage is 100%.'),
     VALID.replace('## Acceptance', '## Objective'),
-    VALID.replace(
-      'Every input either compiles or reports a diagnostic.',
-      'The compiler rejects valid programs. The compiler never rejects valid programs.',
-    ),
   ];
   for (const content of bad)
     assert.equal(designCheck('/w', 'design/a.md', content).ok, false, content.slice(0, 40));
+});
+
+test('product constraints and technical references are not vocabulary violations', () => {
+  const content = VALID.replace(
+    'problem: The compiler accepts invalid programs.',
+    'problem: Reduce cold-run latency by 25% without changing coverage.',
+  )
+    .replace('  - docs/spec.md:1', '  - tools/gate-manifest.sh:1')
+    .replace(
+      'The parser is unchanged.',
+      'The exit code remains stable. A counter measures queue depth, not product readiness.',
+    );
+  const result = designCheck('/w', 'design/a.md', content);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.warnings, []);
+});
+
+test('contradiction heuristics warn rather than establish semantic invalidity', () => {
+  const content = VALID.replace(
+    'Every input either compiles or reports a diagnostic.',
+    'The compiler rejects valid programs. The compiler never rejects valid programs.',
+  );
+  const result = designCheck('/w', 'design/a.md', content);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.errors, []);
+  assert.ok(result.warnings.some((warning) => warning.startsWith('possible contradiction:')));
 });
 
 test('writeDesign writes once and refuses to amend', async () => {

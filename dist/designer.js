@@ -2,7 +2,7 @@ import { Type } from 'typebox';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { redactedJson } from './process.js';
-import { banned, contradictions, duplicates, field, frontmatter, list, words, } from './governance.js';
+import { contradictions, duplicates, field, frontmatter, list, words } from './governance.js';
 export const DESIGN_CAP = 15_000;
 const REQUIRED = [
     'kind',
@@ -31,9 +31,6 @@ export function designPath(cwd, requested) {
 export function designCheck(cwd, requested, content) {
     const { rel } = designPath(cwd, requested);
     const fm = frontmatter(content);
-    const frontmatterText = [...fm.fields.values()]
-        .flatMap((value) => (Array.isArray(value) ? value : [value]))
-        .join('\n');
     const errors = [];
     if (!fm.fields.size)
         errors.push('missing front matter');
@@ -53,8 +50,11 @@ export function designCheck(cwd, requested, content) {
     const count = words(fm.body);
     if (count > DESIGN_CAP)
         errors.push(`over word cap: ${count}`);
-    errors.push(...banned(frontmatterText), ...banned(fm.body), ...duplicates(fm.body).map((heading) => `duplicate section: ${heading}`), ...contradictions(fm.body));
-    const warnings = SECTIONS.filter((section) => !new RegExp(`^#{1,6}\\s+${section}\\b`, 'im').test(fm.body)).map((section) => `missing section: ${section}`);
+    errors.push(...duplicates(fm.body).map((heading) => `duplicate section: ${heading}`));
+    const warnings = [
+        ...SECTIONS.filter((section) => !new RegExp(`^#{1,6}\\s+${section}\\b`, 'im').test(fm.body)).map((section) => `missing section: ${section}`),
+        ...contradictions(fm.body).map((finding) => `possible contradiction: ${finding}`),
+    ];
     return { ok: !errors.length, path: rel, words: count, errors, warnings };
 }
 export async function designWrite(cwd, requested, content) {
@@ -84,7 +84,7 @@ export default function designer(pi) {
     pi.registerTool({
         name: 'deus_design_check',
         label: 'Check design document',
-        description: 'Validate a proposed design document: front matter, word cap, banned text, duplicate sections, contradictions. Writes nothing.',
+        description: 'Check design structure: front matter, word cap, and duplicate headings; warn about possible contradictions. Does not verify evidence or user agreement. Writes nothing.',
         parameters: parameters(),
         async execute(_id, p, _signal, _update, ctx) {
             return output(designCheck(ctx.cwd, p.path, p.content));
