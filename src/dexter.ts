@@ -60,7 +60,7 @@ export class DexterPlugin {
   ) {}
 
   async probe(signal?: AbortSignal): Promise<ProbeReport> {
-    const result = await verifyCommitSignature(this.executable, this.cwd);
+    const result = await verifyCommitSignature(this.executable, this.cwd, signal);
     const cacheKey = result.commit ? `commit:${result.commit}` : `error:${result.error}`;
     if (this.cached?.identity === cacheKey) return this.cached.report;
     const diagnostics = result.diagnostics;

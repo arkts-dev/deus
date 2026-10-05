@@ -214,7 +214,7 @@ const output = (value) => ({
     content: [{ type: 'text', text: redactedJson(value, 2) }],
     details: {},
 });
-export default function board(pi) {
+export function registerBoardTools(pi) {
     const workspace = Type.String({ description: 'Absolute Dexter workspace path' });
     pi.registerTool({
         name: 'deus_board_live',
@@ -259,4 +259,7 @@ export default function board(pi) {
             });
         },
     });
+}
+export default function board(pi) {
+    registerBoardTools(pi);
 }

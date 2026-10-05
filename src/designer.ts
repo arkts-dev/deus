@@ -1,3 +1,4 @@
+import type { ToolRegistrar } from './tool-registry.js';
 /** Designer: mechanical invariant checks and one-shot writing for design documents. */
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
@@ -70,7 +71,10 @@ export async function designWrite(cwd: string, requested: string, content: strin
   const check = designCheck(cwd, requested, content);
   if (!check.ok) return { ...check, status: 'rejected' as const };
   await mkdir(dirname(absolute), { recursive: true });
-  await writeFile(absolute, content.endsWith('\n') ? content : `${content}\n`, 'utf8');
+  await writeFile(absolute, content.endsWith('\n') ? content : `${content}\n`, {
+    encoding: 'utf8',
+    flag: 'wx',
+  });
   return { ...check, status: 'written' as const };
 }
 
@@ -80,7 +84,7 @@ const output = (value: unknown) => ({
   details: {},
 });
 
-export default function designer(pi: ExtensionAPI) {
+export function registerDesignerTools(pi: ToolRegistrar) {
   pi.registerTool({
     name: 'deus_design_check',
     label: 'Check design document',
@@ -101,4 +105,8 @@ export default function designer(pi: ExtensionAPI) {
       return output(await designWrite(ctx.cwd, p.path, p.content));
     },
   });
+}
+
+export default function designer(pi: ExtensionAPI) {
+  registerDesignerTools(pi);
 }

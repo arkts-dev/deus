@@ -72,7 +72,10 @@ export async function designWrite(cwd, requested, content) {
     if (!check.ok)
         return { ...check, status: 'rejected' };
     await mkdir(dirname(absolute), { recursive: true });
-    await writeFile(absolute, content.endsWith('\n') ? content : `${content}\n`, 'utf8');
+    await writeFile(absolute, content.endsWith('\n') ? content : `${content}\n`, {
+        encoding: 'utf8',
+        flag: 'wx',
+    });
     return { ...check, status: 'written' };
 }
 const parameters = () => Type.Object({ path: Type.String(), content: Type.String() });
@@ -80,7 +83,7 @@ const output = (value) => ({
     content: [{ type: 'text', text: redactedJson(value, 2) }],
     details: {},
 });
-export default function designer(pi) {
+export function registerDesignerTools(pi) {
     pi.registerTool({
         name: 'deus_design_check',
         label: 'Check design document',
@@ -99,4 +102,7 @@ export default function designer(pi) {
             return output(await designWrite(ctx.cwd, p.path, p.content));
         },
     });
+}
+export default function designer(pi) {
+    registerDesignerTools(pi);
 }

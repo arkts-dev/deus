@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "transport": "MCP stdio over real SSH",
+  "dexter": "user-supplied real CLI",
+  "signature": "locally generated test identity; no upstream provenance claim",
+  "verifiedCommit": "e1c4569810fba75d2c9b1a4de254bd080af7110c",
+  "exercised": [
+    "initialize",
+    "all tools discovery",
+    "signed probe",
+    "help for all 16 original commands",
+    "unsigned revision blocks mutations",
+    "real init",
+    "real submit with literal shell metacharacters",
+    "real show",
+    "real status",
+    "real board",
+    "workspace binding",
+    "remote report write/read",
+    "disconnect and reconnect",
+    "in-flight SSH disconnect cancels signed fixture without replay"
+  ],
+  "notExercised": [
+    "paid model execution",
+    "live web research",
+    "upstream signature"
+  ]
+}

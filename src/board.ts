@@ -1,3 +1,4 @@
+import type { ToolRegistrar } from './tool-registry.js';
 /** Product control: typed board snapshot, PRODUCT classification, and the one approval-gated close edit. */
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
@@ -257,7 +258,7 @@ const output = (value: unknown) => ({
   details: {},
 });
 
-export default function board(pi: ExtensionAPI) {
+export function registerBoardTools(pi: ToolRegistrar) {
   const workspace = Type.String({ description: 'Absolute Dexter workspace path' });
   pi.registerTool({
     name: 'deus_board_live',
@@ -307,4 +308,8 @@ export default function board(pi: ExtensionAPI) {
       });
     },
   });
+}
+
+export default function board(pi: ExtensionAPI) {
+  registerBoardTools(pi);
 }

@@ -9,7 +9,7 @@ const output = (value) => ({
     content: [{ type: 'text', text: redactedJson(value, 2) }],
     details: {},
 });
-export default function extension(pi) {
+export function registerDexterTools(pi) {
     const clients = new Map();
     const dexter = (cwd) => {
         const executable = process.env.DEXTER_BIN || 'dexter';
@@ -21,11 +21,6 @@ export default function extension(pi) {
         }
         return client;
     };
-    pi.on('before_agent_start', async (event) => ({
-        systemPrompt: event.systemPrompt +
-            '\n\n' +
-            (await readFile(join(packageRoot, 'prompts/kernel.md'), 'utf8')),
-    }));
     pi.registerTool({
         name: 'deus_dexter_probe',
         label: 'Probe Dexter',
@@ -63,4 +58,12 @@ export default function extension(pi) {
             return output(await researchWeb(p.question, config, undefined, signal));
         },
     });
+}
+export default function extension(pi) {
+    pi.on('before_agent_start', async (event) => ({
+        systemPrompt: event.systemPrompt +
+            '\n\n' +
+            (await readFile(join(packageRoot, 'prompts/kernel.md'), 'utf8')),
+    }));
+    registerDexterTools(pi);
 }

@@ -37,7 +37,9 @@
     "skills:verify": "node scripts/sync-skills.mjs --verify",
     "test:package": "npm run build && node scripts/package-smoke.mjs",
     "format": "prettier --write src tests scripts package.json tsconfig.json",
-    "format:check": "prettier --check src tests scripts package.json tsconfig.json"
+    "format:check": "prettier --check src tests scripts package.json tsconfig.json",
+    "test:mcp": "npm run build && node --import tsx --test tests/mcp.test.ts",
+    "test:remote": "npm run build && node scripts/test-remote.mjs"
   },
   "pi": {
     "extensions": [
@@ -50,6 +52,7 @@
     ]
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
     "pi-web-access": "0.29.0"
   },
   "peerDependencies": {
@@ -63,5 +66,8 @@
     "typescript": "5.9.3"
   },
   "private": true,
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "bin": {
+    "deus-mcp": "dist/mcp-cli.js"
+  }
 }

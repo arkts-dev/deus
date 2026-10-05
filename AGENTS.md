@@ -1,9 +1,10 @@
 # Deus
 
-Deus 0.3 is an installable TypeScript Pi plugin package. Dexter alone supervises engineering design, decomposition, task execution, review, and integration. Deus contributes product contracts, research, handoffs, and evidence-based acceptance. Project code and docs are English.
+Deus 0.3 is an installable TypeScript package with Pi and MCP entry points. Dexter alone supervises engineering design, decomposition, task execution, review, and integration. Deus contributes product contracts, research, handoffs, and evidence-based acceptance. Project code and docs are English.
 
 ## Layout
 
+- `src/mcp.ts`, `src/mcp-cli.ts`, `src/mcp-files.ts`: workspace-bound MCP transport, remote artifact tools, and original skill discovery. MCP and Pi share registered handlers; neither has an alternate Dexter dispatch path.
 - `src/`: Pi extensions for the Dexter bridge, designer checks, and board control, plus the signature-verifying Dexter executable/argv adapter, foreground public web research, and process and evidence guards.
 - `prompts/kernel.md`: minimal plugin system prompt.
 - `skills/`: lazy-discovered Pi skills; do not copy them into managed product repositories.
@@ -34,3 +35,7 @@ Web research is foreground and isolated from project files and Dexter. Retain pu
 ## Dependency and provenance
 
 Trust Dexter only through verified commit signatures against the configured GPG fingerprints; the recognized profile is `dexter-signed`. Change the trusted fingerprints only after independently verifying the signer's key. The packaged skills are original Deus texts; keep their digests in `skills.lock.json` and use `.agents/skills/maintain-governance-resources/SKILL.md` for updates. The former manager grant and journal model was intentionally removed in 0.3.
+
+## MCP transport
+
+The `deus-mcp` executable serves stdio, including over SSH, bound to one absolute existing workspace. Preserve all eight original Pi tools and their contracts. MCP input is schema-validated, calls are serialized per connection, and disconnect/cancellation aborts foreground work without replay. This is not a durable operation service. Remote artifact tools exclude Dexter state; board tools retain their explicit exception. Do not claim test-signed archive snapshots establish upstream provenance. Run `npm run test:remote` with `DEUS_TEST_DEXTER_SOURCE` for the Docker/SSH/real-CLI check; it creates only disposable test workspaces and keys.

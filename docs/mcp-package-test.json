@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "artifact": "deus-ex-machina-0.3.0.tgz",
+  "files": 47,
+  "tools": [
+    "deus_dexter_probe",
+    "deus_dexter_exec",
+    "deus_research_web",
+    "deus_design_check",
+    "deus_design_write",
+    "deus_board_live",
+    "deus_board_plan",
+    "deus_board_close"
+  ],
+  "exercised": [
+    "designer product constraints accepted and confirmation guidance shipped",
+    "DEXTER_BIN precedence",
+    "legacy override ignored; default dexter name resolves the PATH fixture",
+    "unknown-profile status blocked",
+    "blocked cmd",
+    "foreground no-model web",
+    "installed MCP executable, tool discovery, workspace binding and skills"
+  ]
+}

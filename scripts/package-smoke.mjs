@@ -15,6 +15,8 @@ try {
   const info = JSON.parse(packed.stdout)[0];
   const paths = info.files.map((file) => file.path);
   for (const path of [
+    'dist/mcp-cli.js',
+    'dist/mcp.js',
     'dist/extension.js',
     'dist/designer.js',
     'dist/board.js',
@@ -70,7 +72,7 @@ try {
   const manifest = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8'));
   assert.equal(manifest.version, '0.3.0');
   assert.equal(manifest.license, 'Apache-2.0');
-  assert.equal(manifest.bin, undefined);
+  assert.deepEqual(manifest.bin, { 'deus-mcp': 'dist/mcp-cli.js' });
   assert.deepEqual(manifest.pi.skills, ['skills']);
   const { loadSkillsFromDir } = await import('@earendil-works/pi-coding-agent');
   const discovered = loadSkillsFromDir({
@@ -231,6 +233,35 @@ tools/gate-manifest.sh
     if (priorTrusted === undefined) delete process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
     else process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS = priorTrusted;
   }
+  // Exercise the installed artifact through a genuine MCP client/process boundary.
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+  const mcp = new Client({ name: 'installed-package-smoke', version: '1' });
+  try {
+    await mcp.connect(
+      new StdioClientTransport({
+        command: join(root, 'install/node_modules/.bin/deus-mcp'),
+        args: ['--workspace', root],
+        env: { PATH: process.env.PATH ?? '', DEUS_DEXTER_TRUSTED_FINGERPRINTS: '' },
+        stderr: 'pipe',
+      }),
+    );
+    assert.equal((await mcp.listTools()).tools.length, 13);
+    const info = await mcp.callTool({ name: 'deus_workspace_info', arguments: {} });
+    assert.equal(JSON.parse(info.content[0].text).workspace, root);
+    const denied = await mcp.callTool({
+      name: 'deus_dexter_exec',
+      arguments: { command: 'status', args: [], workspace: root },
+    });
+    assert.equal(JSON.parse(denied.content[0].text).status, 'blocked_unknown_profile');
+    const skill = await mcp.callTool({ name: 'deus_skill_read', arguments: { name: 'designer' } });
+    assert.equal(
+      skill.content[0].text,
+      await readFile(join(packageDir, 'skills/designer/SKILL.md'), 'utf8'),
+    );
+  } finally {
+    await mcp.close();
+  }
   const installedSdk = await import(
     pathToFileURL(join(root, 'install/node_modules/@earendil-works/pi-coding-agent/dist/index.js'))
       .href
@@ -267,6 +298,7 @@ tools/gate-manifest.sh
           'unknown-profile status blocked',
           'blocked cmd',
           'foreground no-model web',
+          'installed MCP executable, tool discovery, workspace binding and skills',
         ],
       },
       null,

@@ -1,3 +1,4 @@
+import type { ToolRegistrar } from './tool-registry.js';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 import { readFile } from 'node:fs/promises';
@@ -11,7 +12,7 @@ const output = (value: unknown) => ({
   content: [{ type: 'text' as const, text: redactedJson(value, 2) }],
   details: {},
 });
-export default function extension(pi: ExtensionAPI) {
+export function registerDexterTools(pi: ToolRegistrar) {
   const clients = new Map<string, DexterPlugin>();
   const dexter = (cwd: string) => {
     const executable = process.env.DEXTER_BIN || 'dexter';
@@ -23,12 +24,6 @@ export default function extension(pi: ExtensionAPI) {
     }
     return client;
   };
-  pi.on('before_agent_start', async (event) => ({
-    systemPrompt:
-      event.systemPrompt +
-      '\n\n' +
-      (await readFile(join(packageRoot, 'prompts/kernel.md'), 'utf8')),
-  }));
   pi.registerTool({
     name: 'deus_dexter_probe',
     label: 'Probe Dexter',
@@ -70,4 +65,14 @@ export default function extension(pi: ExtensionAPI) {
       return output(await researchWeb(p.question, config, undefined, signal));
     },
   });
+}
+
+export default function extension(pi: ExtensionAPI) {
+  pi.on('before_agent_start', async (event) => ({
+    systemPrompt:
+      event.systemPrompt +
+      '\n\n' +
+      (await readFile(join(packageRoot, 'prompts/kernel.md'), 'utf8')),
+  }));
+  registerDexterTools(pi);
 }
