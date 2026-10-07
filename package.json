@@ -50,6 +50,7 @@
     ]
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
     "pi-web-access": "0.29.0",
     "yaml": "2.9.0"
   },
@@ -62,6 +63,9 @@
     "prettier": "3.9.6",
     "tsx": "4.23.13",
     "typescript": "5.9.3"
+  },
+  "bin": {
+    "deus-mcp": "dist/mcp-cli.js"
   },
   "private": true,
   "license": "Apache-2.0"

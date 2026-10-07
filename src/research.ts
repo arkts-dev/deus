@@ -20,7 +20,7 @@ import {
   type ResearchReport,
 } from './evidence.js';
 import { isolatedLoader, skillsRoot } from './resources.js';
-import { redact, redactedJson } from './process.js';
+import { redact, jsonResult } from './process.js';
 
 export interface WebConfig {
   searxngUrl?: string;
@@ -116,10 +116,7 @@ export async function searchWeb(
   }
   throw new Error('web_unavailable: configure a search provider');
 }
-const output = (data: unknown) => ({
-  content: [{ type: 'text' as const, text: redactedJson(data) }],
-  details: {},
-});
+const output = (data: unknown) => jsonResult(data, 0);
 export function externalResearchTools(
   config: WebConfig,
   receipts: SourceReceipt[],

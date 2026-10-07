@@ -4,7 +4,7 @@ import { isAbsolute, join, relative, sep } from 'node:path';
 import { SignedCursor } from './cursor.js';
 import { parse, stringify } from 'yaml';
 import { digest, redact } from './process.js';
-import { boundedText } from './receipt.js';
+import { bytePage } from './receipt.js';
 export const SECTIONS = {
     issue: ['summary', 'metadata', 'body', 'notes'],
     mr: ['summary', 'metadata', 'body', 'reviews', 'notes'],
@@ -146,13 +146,10 @@ export class ArtifactReader {
                 throw new Error('Invalid cursor offset');
             offset = next;
         }
-        const remaining = Buffer.from(text).subarray(offset).toString('utf8');
-        const chunk = boundedText(remaining, limit);
-        const nextOffset = offset + Buffer.byteLength(chunk);
-        let nextCursor = null;
-        if (nextOffset < Buffer.byteLength(text)) {
-            nextCursor = this.cursor.encode({ identity, revision, offset: nextOffset });
-        }
-        return { id: p.id, section, text: chunk, revision, nextCursor };
+        const page = bytePage(text, offset, limit);
+        const nextCursor = page.nextOffset === null
+            ? null
+            : this.cursor.encode({ identity, revision, offset: page.nextOffset });
+        return { id: p.id, section, text: page.text, revision, nextCursor };
     }
 }

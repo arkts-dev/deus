@@ -1,4 +1,5 @@
 /** Product control: typed board snapshot, PRODUCT classification, and the one approval-gated close edit. */
+import { type ToolRegistrar } from './tool-registry.js';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 export type Reason = 'NOISE' | 'DEAD' | 'SUPERSEDED';
 export interface Issue {
@@ -62,4 +63,5 @@ export declare function applyClose(workspace: string, board: Board, issueId: str
     changed: boolean;
     reason: Reason;
 }>;
+export declare function registerBoardTools(pi: ToolRegistrar): void;
 export default function board(pi: ExtensionAPI): void;

@@ -6,5 +6,6 @@ The packaged Deus extension uses the following npm dependencies. They are instal
 - `pi-web-access` 0.29.0 — MIT.
 - `typebox` 1.3.7 — MIT.
 - `yaml` 2.9.0 — ISC.
+- `@modelcontextprotocol/sdk` 1.32.1 — MIT.
 
 The Pi skills in this repository are original Deus texts and are covered by the repository's Apache-2.0 license. Their packaged contents are hashed in `skills.lock.json`.

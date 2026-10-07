@@ -43,7 +43,7 @@ async function findRepoRoot(startDir) {
         dir = parent;
     }
 }
-export async function verifyCommitSignature(executable, cwd) {
+export async function verifyCommitSignature(executable, cwd, signal) {
     const diagnostics = {};
     const trusted = trustedFingerprints();
     const fail = (error) => ({
@@ -60,7 +60,7 @@ export async function verifyCommitSignature(executable, cwd) {
     const repo = await findRepoRoot(dirname(exePath));
     if (!repo)
         return fail(`no git repository found above ${dirname(exePath)}`);
-    const revParse = await runProcess('git', ['-C', repo, 'rev-parse', 'HEAD'], { cwd });
+    const revParse = await runProcess('git', ['-C', repo, 'rev-parse', 'HEAD'], { cwd, signal });
     diagnostics['git rev-parse HEAD'] = revParse;
     if (!succeeded(revParse))
         return fail('git rev-parse HEAD failed');
@@ -69,11 +69,12 @@ export async function verifyCommitSignature(executable, cwd) {
     const env = { ...process.env, GNUPGHOME: tmp };
     try {
         for (const fingerprint of trusted) {
-            diagnostics[`gpg --recv-keys ${fingerprint.slice(-16)}`] = await runProcess('gpg', ['--batch', '--keyserver', KEYSERVER, '--recv-keys', fingerprint], { cwd, env });
+            diagnostics[`gpg --recv-keys ${fingerprint.slice(-16)}`] = await runProcess('gpg', ['--batch', '--keyserver', KEYSERVER, '--recv-keys', fingerprint], { cwd, env, signal });
         }
         const verify = await runProcess('git', ['-C', repo, 'verify-commit', '--raw', commit], {
             cwd,
             env,
+            signal,
         });
         diagnostics['git verify-commit'] = verify;
         if (!succeeded(verify))

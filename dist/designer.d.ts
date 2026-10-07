@@ -1,4 +1,5 @@
 /** Designer: mechanical invariant checks and one-shot writing for design documents. */
+import { type ToolRegistrar } from './tool-registry.js';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 export declare const DESIGN_CAP = 15000;
 export declare function designPath(cwd: string, requested: string): {
@@ -27,4 +28,5 @@ export declare function designWrite(cwd: string, requested: string, content: str
     errors: string[];
     warnings: string[];
 }>;
+export declare function registerDesignerTools(pi: ToolRegistrar): void;
 export default function designer(pi: ExtensionAPI): void;

@@ -1,6 +1,6 @@
 # Deus
 
-Deus 0.3 is an open source [Pi](https://github.com/earendil-works/pi-mono) package for product contracts, research, and evidence-based acceptance. Extensions and lazy skills bridge Dexter; Dexter owns engineering planning, execution, review, and integration. There is no standalone `deus` executable.
+Deus 0.3 is an open source [Pi](https://github.com/earendil-works/pi-mono) package for product contracts, research, and evidence-based acceptance. Extensions and lazy skills bridge Dexter; Dexter owns engineering planning, execution, review, and integration. Optional [`deus-mcp`](docs/mcp.md) serves Codex/SSH; no standalone `deus` CLI.
 
 ## Requirements
 
@@ -64,7 +64,7 @@ Four readers share `{workspace, section?, cursor?, limit?}` plus `issue`, `mr`, 
 
 Responses: `{id, section, text, revision, nextCursor}`. Summary includes metadata/body, not history. `limit`: UTF-8 bytes, default 4096, range 4–16384. Omitted/null cursor starts reading; null nextCursor ends the section. Continue the same artifact/section. Opaque, path-free cursors expire on reload and reject changes. Run assignment/system are separate prompts; transcript is stdout, not a Pi session dump. Missing payloads error.
 
-The CLI lacks structured pagination/run reads. Readers use local Forge files (≤64 MiB/file or assembled history), without remote transport or generic output retrieval. Ordinary read-only tools remain available for inspection and ID discovery.
+The CLI lacks structured pagination/run reads. Readers use host-local Forge files (≤64 MiB/file or assembled history), without generic output retrieval. Ordinary read-only tools remain available for inspection and ID discovery.
 
 `deus_dexter_issues_live` reads the frontier; `deus_dexter_issues_plan` proposes actions without mutation; `deus_dexter_issue_close` performs an approved, guarded closure. These access Forge directly. Initialization, drain, directives, request answers/denials, and doctor are unexposed.
 

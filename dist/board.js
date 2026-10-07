@@ -1,7 +1,9 @@
+/** Product control: typed board snapshot, PRODUCT classification, and the one approval-gated close edit. */
+import { readOnly } from './tool-registry.js';
 import { Type } from 'typebox';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
-import { redactedJson } from './process.js';
+import { jsonResult as output } from './process.js';
 import { mutationReceipt } from './receipt.js';
 import { DexterPlugin } from './dexter.js';
 import { banned, field, frontmatter, list, terms } from './governance.js';
@@ -224,14 +226,11 @@ export async function applyClose(workspace, board, issueId, reason, successor) {
     await writeFile(path, content, 'utf8');
     return { issue: issueId, changed: true, reason };
 }
-const output = (value) => ({
-    content: [{ type: 'text', text: redactedJson(value, 2) }],
-    details: {},
-});
-export default function board(pi) {
+export function registerBoardTools(pi) {
     const workspace = Type.String({ description: 'Absolute Dexter workspace path' });
     pi.registerTool({
         name: 'deus_dexter_issues_live',
+        annotations: readOnly,
         label: 'Live board',
         description: 'Parse the forge into a typed board: the dependency frontier, claims, and the dispatchable set. Lists only non-terminal issues without bodies; use issue_read for individual records.',
         parameters: Type.Object({ workspace }),
@@ -245,6 +244,7 @@ export default function board(pi) {
     });
     pi.registerTool({
         name: 'deus_dexter_issues_plan',
+        annotations: readOnly,
         label: 'Plan board saturation',
         description: 'Classify non-terminal issues against the live root objective and propose scheduling actions and guarded closures, not implementation plans. Never mutates.',
         parameters: Type.Object({ workspace }),
@@ -298,4 +298,7 @@ export default function board(pi) {
             }
         },
     });
+}
+export default function board(pi) {
+    registerBoardTools(pi);
 }
