@@ -5,7 +5,7 @@
     {
       "output": "skills/dexter-control/SKILL.md",
       "origin": "deus-original",
-      "sha256": "77a57fb87fe100a0f264096a1a5962143d60346f3f3aa0cd317a4f631eefb015"
+      "sha256": "90af07660d787c01acf35e3faa7a8d6e79057d0d89acd1aabb323345379a3001"
     },
     {
       "output": "skills/designer/SKILL.md",
@@ -15,7 +15,7 @@
     {
       "output": "skills/product-control/SKILL.md",
       "origin": "deus-original",
-      "sha256": "b21c57f38540cfe530824077e2abd05e8092278864841c82d5bb300ce48ce0e8"
+      "sha256": "fe840ff47fcbdaaec2f1828e47db3265fc5538b4a4bf64c00168a87580c689a6"
     },
     {
       "output": "skills/web-research/SKILL.md",
@@ -30,7 +30,7 @@
     {
       "output": "skills/simplify-review/SKILL.md",
       "origin": "deus-original",
-      "sha256": "285f9c0357f15c88a1d6c661bbce0eb84c3727f518cb837a215742db8f8948b0"
+      "sha256": "9404b5ccfd58dd8a2c581b4678af3748cf636e4f5951474402b8597cb23da464"
     }
   ]
 }

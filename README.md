@@ -1,16 +1,14 @@
 # Deus
 
-Deus 0.3 is an open source [Pi](https://github.com/earendil-works/pi-mono) package for product contracts, local and public research, and evidence-based acceptance. It adds a small Dexter CLI bridge without taking over engineering orchestration: Dexter remains responsible for implementation planning, execution, review, and integration.
-
-The package contains Pi extensions and on-demand skills for design, product control, Dexter control, research, and review. Deus has no standalone `deus` command or platform-specific executable.
+Deus 0.3 is an open source [Pi](https://github.com/earendil-works/pi-mono) package for product contracts, research, and evidence-based acceptance. Extensions and lazy skills bridge Dexter; Dexter owns engineering planning, execution, review, and integration. There is no standalone `deus` executable.
 
 ## Requirements
 
 - Node.js 22.19 or newer, npm, Git, and Pi 0.85.1.
 - A model configured in Pi for agent-driven research and skills.
-- The native Dexter CLI, from a checkout whose commits are signed by a trusted GPG key (see [Dexter CLI](#dexter-cli)). The CLI is not included in this repository; design and research capabilities do not require it.
+- Native Dexter from a trusted signed checkout (see [Dexter CLI](#dexter-cli)); unbundled and unnecessary for design/research.
 
-Pi packages run with the user's system permissions. Review the extension and skill source before installing it.
+Pi packages inherit user permissions; review source before installation.
 
 ## Install
 
@@ -27,11 +25,11 @@ pi install git:github.com/arkts-dev/deus@v0.3.0
 pi list
 ```
 
-The [v0.3.0 GitHub Release](https://github.com/arkts-dev/deus/releases/tag/v0.3.0) also provides the prebuilt `deus-ex-machina-0.3.0.tgz` package and `SHA256SUMS`. The archive contains compiled JavaScript, the packaged skills, the minimal prompt, metadata, and license files. Pi's supported installation path for this release is the Git tag above; the release archive is a downloadable build for inspection or other npm-compatible tooling. It is not a separate executable and does not need an operating-system-specific variant. The compiled `dist/` files are committed so Pi can load the Git installation without a local TypeScript build.
+The [GitHub Release](https://github.com/arkts-dev/deus/releases/tag/v0.3.0) supplies `deus-ex-machina-0.3.0.tgz` and `SHA256SUMS`. Committed `dist/` supports build-free Git installation.
 
 ## First use
 
-Start `pi` in your project. You can ask it to create a product design contract, inspect local code with cited evidence, or research a public question. For example:
+Start `pi` in your project. Example requests:
 
 ```text
 Use designer to define the outcome and acceptance criteria for this feature.
@@ -40,17 +38,45 @@ Research the public documentation for this API and distinguish evidence from inf
 Run deus_dexter_probe and explain whether the installed CLI matches the supported profile.
 ```
 
-Deus writes requested persistent product artifacts as tracked Markdown under `.deus/design/`, `.deus/research/`, or `.deus/handoffs/` by default. Research reports cite inspected sources and identify gaps. A successful worker exit or task-board status is never treated as proof that a product requirement was met.
+Persistent artifacts default to tracked Markdown under `.deus/design/`, `.deus/research/`, or `.deus/handoffs/`. Reports cite sources and gaps; worker exits and board statuses never prove acceptance.
 
 ### Dexter CLI
 
-`deus_dexter_probe` verifies the installed Dexter CLI's commit signature and reads version evidence. `deus_dexter_exec({command,args,workspace})` executes one command with an absolute workspace and no shell interpolation or automatic retry. Every workspace command is blocked when verification fails. Set `DEXTER_BIN` to an executable path to override the default `dexter` lookup.
+`deus_dexter_probe` verifies the installed Dexter CLI's commit signature and reads version evidence. Six typed mutations require absolute workspaces and verified argv execution, without shells or retries:
 
-Set `DEUS_DEXTER_TRUSTED_FINGERPRINTS` to one or more comma-separated full GPG fingerprints. The plugin then verifies (`git verify-commit`) that the installed Dexter commit is signed by one of those keys; the recognized profile is `dexter-signed`, `baselineRevision` is the verified commit SHA, and the probe also reports `verifiedCommit` and `verifiedFingerprint`. The Dexter checkout is located by walking up from the resolved `dexter` executable. Without a matching signature the profile is `unknown` and no workspace command runs.
+- `deus_dexter_submit({workspace, title, body})`
+- `deus_dexter_issue_create({workspace, title, body, parent?, dependencies?, priority?})`
+- `deus_dexter_issue_nudge({workspace, issue})`
+- `deus_dexter_issue_reprioritize({workspace, issue, priority})`
+- `deus_dexter_issue_relink({workspace, issue, parent?, addDependencies?, removeDependencies?})` — omit parent to retain it; null clears it.
+- `deus_dexter_architecture_accept({workspace, issue, candidate, reason})`
+
+Receipts distinguish `rejected`, `completed`, and `outcome_unknown`, with issue, exit, signal, timeout, cancellation, and diagnostics (≤2 KiB/stream). Output limits never kill commands. Failed/interrupted mutations require live-state inspection, never automatic retry. Completion is not product acceptance. Issue closure shares this contract.
+
+Four readers share `{workspace, section?, cursor?, limit?}` plus `issue`, `mr`, `slug`, or `run`, respectively:
+
+| Tool | Sections (first is default) |
+| --- | --- |
+| `deus_dexter_issue_read` | summary, metadata, body, notes |
+| `deus_dexter_mr_read` | summary, metadata, body, reviews, notes |
+| `deus_dexter_wiki_read` | summary, metadata, body |
+| `deus_dexter_run_read` | metadata, assignment, system, transcript, stderr |
+
+Responses: `{id, section, text, revision, nextCursor}`. Summary includes metadata/body, not history. `limit`: UTF-8 bytes, default 4096, range 4–16384. Omitted/null cursor starts reading; null nextCursor ends the section. Continue the same artifact/section. Opaque, path-free cursors expire on reload and reject changes. Run assignment/system are separate prompts; transcript is stdout, not a Pi session dump. Missing payloads error.
+
+The CLI lacks structured pagination/run reads. Readers use local Forge files (≤64 MiB/file or assembled history), without remote transport or generic output retrieval. Ordinary read-only tools remain available for inspection and ID discovery.
+
+`deus_dexter_issues_live` reads the frontier; `deus_dexter_issues_plan` proposes actions without mutation; `deus_dexter_issue_close` performs an approved, guarded closure. These access Forge directly. Initialization, drain, directives, request answers/denials, and doctor are unexposed.
+
+`deus_dexter_bots_live({workspace})`: working/stale bots, targets, correlated claims; local PID/remote heartbeat liveness; persisted-config cooldown estimate, not observed scheduler settings. Maximum 16 KiB.
+
+`deus_dexter_events_read({workspace,cursor?,limit?})`: newest-first bus summaries, no bodies; default 20/max 100 records and 16 KiB summary bytes. Cursor continues backward despite appends; expires on reload. Both are local read-only adapters.
+
+`DEXTER_BIN` overrides the default `dexter` lookup. Configure comma-separated full `DEUS_DEXTER_TRUSTED_FINGERPRINTS`: `git verify-commit` checks the executable's enclosing checkout. A matching signature yields `dexter-signed`, verified SHA (`baselineRevision`/`verifiedCommit`), and `verifiedFingerprint`. Otherwise `unknown` blocks **all mutations**, including direct closure, but not reads.
 
 #### Determining the trusted fingerprint
 
-`DEUS_DEXTER_TRUSTED_FINGERPRINTS` is the **full fingerprint of the key that signs the Dexter commits you run**, verified out-of-band — not guessed, and not trusted merely because the repo printed it.
+Pin the **full commit-signing fingerprint**, verified independently—not merely printed by the repository.
 
 ```sh
 # Who signed the commit you are on?
@@ -65,9 +91,7 @@ curl -sL https://github.com/web-flow.gpg | gpg --show-keys
 export DEUS_DEXTER_TRUSTED_FINGERPRINTS=968479A1AFF927E37D1A566BB5690EEEBB952194
 ```
 
-Always use the full 40-character fingerprint, never the short key ID. For commits signed by an individual maintainer rather than GitHub, confirm that maintainer's published key instead.
-
-The separate `dexter-web` server and `config` command are outside this integration. The private CLI is **not** included in the GitHub Release.
+Use full 40-character fingerprints, never short IDs; verify individual maintainers' keys separately. `dexter-web` and `config` are outside this integration; the CLI is not bundled.
 
 ### Public web research
 
@@ -80,7 +104,7 @@ The separate `dexter-web` server and `config` command are outside this integrati
 | Brave | `BRAVE_API_KEY` |
 | Tavily | `TAVILY_API_KEY` |
 
-Set `DEUS_WEB_PROVIDER` to `exa`, `searxng`, `brave`, or `tavily` to select a provider explicitly. Without that setting, Deus selects Exa when its key is present, then SearXNG when its URL is present. A `fetch` request can inspect a supplied public URL but does not provide search discovery. Never include private project text or credentials in a public research question.
+Set `DEUS_WEB_PROVIDER` to `exa`, `searxng`, `brave`, or `tavily` to select a provider explicitly. Otherwise Deus prefers configured Exa, then SearXNG. A `fetch` request can inspect a supplied public URL but does not provide search discovery. Never include private project text or credentials in a public research question.
 
 ## Development
 
@@ -92,8 +116,8 @@ npm run format:check
 npm run test:package
 ```
 
-Install Dexter before running `npm run check` or `npm run test:package`. Put its executable on `PATH` for the installed-package smoke test; `DEXTER_BIN` can point to the same executable for the adapter tests.
+Install Dexter on `PATH` for live checks; adapter tests also accept `DEXTER_BIN`.
 
 GitHub Actions needs a `DEXTER_READ_TOKEN` repository secret with read-only Contents access to `arkts-dev/dexter` for pushes and same-repository PRs. Fork PRs cannot receive that secret, so they run fixture checks with `DEUS_TEST_NO_CLI=1` and skip only the live signature check.
 
-The package is licensed under [Apache-2.0](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md) for development and release steps, [SECURITY.md](SECURITY.md) for vulnerability reports, and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency notices. This repository is Git-distributed; `private: true` in `package.json` prevents accidental npm publication.
+Licensed under [Apache-2.0](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for contribution, security, and dependency details. Git-distributed; `private: true` prevents npm publication.

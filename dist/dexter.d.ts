@@ -1,35 +1,52 @@
 import { type ProcessResult } from './process.js';
-export declare const COMMANDS: readonly ["init", "submit", "issue", "run", "status", "show", "doctor", "requests", "answer", "deny", "wiki", "nudge-issue", "reprioritize-issue", "accept-architecture", "relink-issue", "cmd"];
-export type DexterCommand = (typeof COMMANDS)[number];
+import { type MutationReceipt } from './receipt.js';
+export declare const MUTATION_COMMANDS: readonly ["submit", "issue", "nudge-issue", "reprioritize-issue", "relink-issue", "accept-architecture"];
 export interface ProbeReport {
     executable: string;
     profile: 'dexter-signed' | 'unknown';
     baselineRevision: string;
-    supportedCommands: readonly DexterCommand[];
+    supportedCommands: readonly (typeof MUTATION_COMMANDS)[number][];
     diagnostics: Record<string, ProcessResult>;
     reasons: string[];
     verifiedCommit?: string;
     verifiedFingerprint?: string;
 }
-export declare function classifyDoctor(raw: Pick<ProcessResult, 'stdout' | 'stderr'>): "workspace-failed" | "provider-ok" | "agent-env-failed" | "absent" | undefined;
-export interface ExecResult {
-    command: DexterCommand;
+export interface Submission {
     workspace: string;
-    profile: ProbeReport['profile'];
-    status: 'executed' | 'blocked_unknown_profile';
-    raw?: ProcessResult;
-    reasons: string[];
-    doctor?: ReturnType<typeof classifyDoctor>;
+    title: string;
+    body: string;
 }
-/**
- * Trust is established solely by verifying the installed Dexter commit's GPG signature
- * against DEUS_DEXTER_TRUSTED_FINGERPRINTS. The report is cached per commit SHA.
- */
+export interface IssueCreation extends Submission {
+    parent?: string;
+    dependencies?: string[];
+    priority?: number;
+}
+export interface IssueTarget {
+    workspace: string;
+    issue: string;
+}
+export interface IssueRelink extends IssueTarget {
+    parent?: string | null;
+    addDependencies?: string[];
+    removeDependencies?: string[];
+}
+/** Typed mutations use one verified executable/argv route, never a shell or retries. */
 export declare class DexterPlugin {
     readonly executable: string;
     readonly cwd: string;
     private cached?;
     constructor(executable?: string, cwd?: string);
     probe(signal?: AbortSignal): Promise<ProbeReport>;
-    exec(command: DexterCommand, args: string[], workspace: string, signal?: AbortSignal): Promise<ExecResult>;
+    submit(p: Submission, signal?: AbortSignal): Promise<MutationReceipt>;
+    createIssue(p: IssueCreation, signal?: AbortSignal): Promise<MutationReceipt>;
+    nudgeIssue(p: IssueTarget, signal?: AbortSignal): Promise<MutationReceipt>;
+    reprioritizeIssue(p: IssueTarget & {
+        priority: number;
+    }, signal?: AbortSignal): Promise<MutationReceipt>;
+    relinkIssue(p: IssueRelink, signal?: AbortSignal): Promise<MutationReceipt>;
+    acceptArchitecture(p: IssueTarget & {
+        candidate: string;
+        reason: string;
+    }, signal?: AbortSignal): Promise<MutationReceipt>;
+    private invoke;
 }

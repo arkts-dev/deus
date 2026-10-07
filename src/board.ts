@@ -4,6 +4,8 @@ import { Type } from 'typebox';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { redactedJson } from './process.js';
+import { mutationReceipt } from './receipt.js';
+import { DexterPlugin } from './dexter.js';
 import { banned, field, frontmatter, list, terms } from './governance.js';
 
 const TERMINAL = new Set(['closed', 'rejected']);
@@ -139,11 +141,8 @@ export function preconditions(issue: Issue, board: Board): string[] {
   if (issue.claimed) errors.push('active claim');
   if (issue.workdir) errors.push('active workdir');
   if (issue.mr) errors.push('active merge request');
-  if (
-    issue.kind === 'epic' &&
-    board.issues.some((child) => child.parent === issue.id && !terminal(child))
-  )
-    errors.push('epic has open children');
+  if (board.issues.some((child) => child.parent === issue.id && !terminal(child)))
+    errors.push('issue has open children');
   return errors;
 }
 
@@ -178,18 +177,22 @@ export function planBoard(board: Board) {
         errors,
       };
     });
-  const commands: { command: string; argv: string[]; reason: string }[] = [];
+  const actions: { tool: string; parameters: Record<string, unknown>; reason: string }[] = [];
   for (const entry of classifications.filter((item) => item.classification === 'PRODUCT')) {
     const issue = byId.get(entry.id);
     if (!issue) continue;
     if (board.ready.includes(issue.id) && issue.priority > 1)
-      commands.push({
-        command: 'reprioritize-issue',
-        argv: [issue.id, '--priority', '1'],
+      actions.push({
+        tool: 'deus_dexter_issue_reprioritize',
+        parameters: { workspace: board.workspace, issue: issue.id, priority: 1 },
         reason: 'PRODUCT ready',
       });
     if (issue.status === 'blocked')
-      commands.push({ command: 'nudge-issue', argv: [issue.id], reason: 'PRODUCT blocked' });
+      actions.push({
+        tool: 'deus_dexter_issue_nudge',
+        parameters: { workspace: board.workspace, issue: issue.id },
+        reason: 'PRODUCT blocked',
+      });
   }
   const reports = closes.flatMap((close) =>
     close.errors.map((error) => `raw edit required for ${close.issue}: ${error}`),
@@ -213,10 +216,27 @@ export function planBoard(board: Board) {
     objectiveTerms,
     classifications,
     closes,
-    commands,
+    actions,
     reports,
     saturation: { before: board.ready.length, after },
   };
+}
+
+function closeErrors(board: Board, issueId: string, reason: Reason, successor?: string): string[] {
+  const issue = board.issues.find((entry) => entry.id === issueId);
+  if (!issue) return [`unknown issue: ${issueId}`];
+  if (terminal(issue)) return [];
+  const errors = preconditions(issue, board);
+  if (classify(issue, rootTerms(board)).classification === 'PRODUCT' && !successor)
+    errors.push(`refusing to close PRODUCT ${issueId}: name a successor`);
+  if (reason === 'SUPERSEDED' && !successor) errors.push('SUPERSEDED requires a successor');
+  if (
+    successor &&
+    (successor === issueId ||
+      !board.issues.some((entry) => entry.id === successor && !terminal(entry)))
+  )
+    errors.push(`unknown or terminal successor: ${successor}`);
+  return errors;
 }
 
 export async function applyClose(
@@ -226,16 +246,10 @@ export async function applyClose(
   reason: Reason,
   successor?: string,
 ) {
-  const issue = board.issues.find((candidate) => candidate.id === issueId);
-  if (!issue) throw new Error(`unknown issue: ${issueId}`);
+  const errors = closeErrors(board, issueId, reason, successor);
+  if (errors.length) throw new Error(errors.join('; '));
+  const issue = board.issues.find((entry) => entry.id === issueId)!;
   if (terminal(issue)) return { issue: issueId, changed: false, reason };
-  const errors = preconditions(issue, board);
-  if (errors.length) throw new Error(`close refused for ${issueId}: ${errors.join('; ')}`);
-  if (classify(issue, rootTerms(board)).classification === 'PRODUCT' && !successor)
-    throw new Error(`refusing to close PRODUCT ${issueId}: name a successor`);
-  if (reason === 'SUPERSEDED' && !successor) throw new Error('SUPERSEDED requires a successor');
-  if (successor && !board.issues.some((entry) => entry.id === successor && !terminal(entry)))
-    throw new Error(`unknown or terminal successor: ${successor}`);
   const path = join(workspace, 'forge', 'issues', issue.file);
   let content = await readFile(path, 'utf8');
   for (const [key, value] of [
@@ -260,10 +274,10 @@ const output = (value: unknown) => ({
 export default function board(pi: ExtensionAPI) {
   const workspace = Type.String({ description: 'Absolute Dexter workspace path' });
   pi.registerTool({
-    name: 'deus_board_live',
+    name: 'deus_dexter_issues_live',
     label: 'Live board',
     description:
-      'Parse the forge into a typed board: the dependency frontier, claims, and the dispatchable set. Lists only non-terminal issues; terminal issues remain reachable through dexter status and show.',
+      'Parse the forge into a typed board: the dependency frontier, claims, and the dispatchable set. Lists only non-terminal issues without bodies; use issue_read for individual records.',
     parameters: Type.Object({ workspace }),
     async execute(_id, p) {
       const { issues, ...board } = await loadBoard(p.workspace);
@@ -274,20 +288,20 @@ export default function board(pi: ExtensionAPI) {
     },
   });
   pi.registerTool({
-    name: 'deus_board_plan',
+    name: 'deus_dexter_issues_plan',
     label: 'Plan board saturation',
     description:
-      'Classify non-terminal issues as PRODUCT or NOISE against the live root objective and propose saturation commands. Never mutates.',
+      'Classify non-terminal issues against the live root objective and propose scheduling actions and guarded closures, not implementation plans. Never mutates.',
     parameters: Type.Object({ workspace }),
     async execute(_id, p) {
       return output(planBoard(await loadBoard(p.workspace)));
     },
   });
   pi.registerTool({
-    name: 'deus_board_close',
+    name: 'deus_dexter_issue_close',
     label: 'Close noise issue',
     description:
-      'The sole approval-gated raw edit: close one leaf NOISE/DEAD issue with no claim, workdir, merge request, or open children. Requires confirm=true.',
+      'The sole approval-gated raw edit: close one leaf NOISE/DEAD issue with no claim, workdir, merge request, or open children. Requires confirm=true and a verified dexter-signed profile.',
     parameters: Type.Object({
       workspace,
       issue: Type.String(),
@@ -297,14 +311,52 @@ export default function board(pi: ExtensionAPI) {
       ),
       confirm: Type.Boolean(),
     }),
-    async execute(_id, p) {
-      if (!p.confirm)
-        return output({ status: 'refused', reason: 'confirm=true is required for a raw edit' });
+    async execute(_id, p, signal, _update, ctx) {
+      if (!p.confirm || signal?.aborted || !isAbsolute(p.workspace))
+        return output(
+          mutationReceipt('rejected', {
+            issue: p.issue,
+            cancelled: signal?.aborted,
+            reasons: ['Closure requires approval, an absolute workspace, and no cancellation'],
+          }),
+        );
+      const probe = await new DexterPlugin(process.env.DEXTER_BIN || 'dexter', ctx.cwd).probe(
+        signal,
+      );
+      const receipt = { profile: probe.profile, issue: p.issue };
+      if (probe.profile !== 'dexter-signed')
+        return output(mutationReceipt('rejected', { ...receipt, reasons: probe.reasons }));
       const snapshot = await loadBoard(p.workspace);
-      return output({
-        status: 'applied',
-        ...(await applyClose(snapshot.workspace, snapshot, p.issue, p.reason, p.successor)),
-      });
+      const errors = closeErrors(snapshot, p.issue, p.reason, p.successor);
+      if (signal?.aborted)
+        return output(
+          mutationReceipt('rejected', {
+            ...receipt,
+            cancelled: true,
+            reasons: ['Cancelled before closure'],
+          }),
+        );
+      if (errors.length)
+        return output(mutationReceipt('rejected', { ...receipt, reasons: errors }));
+      try {
+        const result = await applyClose(
+          snapshot.workspace,
+          snapshot,
+          p.issue,
+          p.reason,
+          p.successor,
+        );
+        return output(mutationReceipt('completed', { ...receipt, changed: result.changed }));
+      } catch {
+        return output(
+          mutationReceipt('outcome_unknown', {
+            ...receipt,
+            reasons: [
+              'Closure did not complete reliably; inspect live state and do not retry automatically',
+            ],
+          }),
+        );
+      }
     },
   });
 }

@@ -1,5 +1,14 @@
 import assert from 'node:assert/strict';
-import { chmod, copyFile, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -19,6 +28,7 @@ try {
     'dist/designer.js',
     'dist/board.js',
     'dist/dexter.js',
+    'dist/operations.js',
     'dist/research.js',
     'prompts/kernel.md',
     'skills.lock.json',
@@ -53,20 +63,21 @@ try {
   );
   assert.ok(succeeded(installed), installed.stderr);
   const packageDir = join(root, 'install/node_modules/deus-ex-machina');
-  for (const path of ['prompts/kernel.md', 'skills/dexter-control/SKILL.md']) {
-    const shippedGuidance = await readFile(join(packageDir, path), 'utf8');
-    assert.ok(
-      shippedGuidance.includes('`deus_board_*` tools are the explicit product-control exception'),
-      path,
-    );
-    assert.ok(
-      shippedGuidance.includes(
-        'Do not read, parse, or edit Dexter-owned state outside these tools',
-      ),
-      path,
-    );
-    assert.ok(shippedGuidance.includes('report the gap and leave Dexter state unchanged'), path);
-  }
+  const kernel = await readFile(join(packageDir, 'prompts/kernel.md'), 'utf8');
+  assert.ok(kernel.includes('`deus_dexter_*` API is the sole mechanism for mutating'));
+  assert.ok(kernel.includes('For reading, `deus_dexter_*` are preferred'));
+  assert.ok(kernel.includes('if they are insufficient, ordinary read-only tools are allowed'));
+  assert.ok(
+    kernel.includes(
+      'If `profile` is `unknown`, any mutation of the Dexter workspace is prohibited',
+    ),
+  );
+  assert.ok(kernel.includes('Never retry failed mutations automatically'));
+  const control = await readFile(join(packageDir, 'skills/dexter-control/SKILL.md'), 'utf8');
+  for (const name of ['issues_live', 'issues_plan', 'issue_close'])
+    assert.ok(control.includes(`deus_dexter_${name}`));
+  assert.ok(control.includes('Read-only operations are allowed as usual'));
+  assert.ok(control.includes('report the gap and leave Dexter state unchanged'));
   const manifest = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8'));
   assert.equal(manifest.version, '0.3.0');
   assert.equal(manifest.license, 'Apache-2.0');
@@ -100,13 +111,24 @@ try {
   designer(register);
   board(register);
   assert.deepEqual(tools.map((tool) => tool.name).sort(), [
-    'deus_board_close',
-    'deus_board_live',
-    'deus_board_plan',
     'deus_design_check',
     'deus_design_write',
-    'deus_dexter_exec',
+    'deus_dexter_architecture_accept',
+    'deus_dexter_bots_live',
+    'deus_dexter_events_read',
+    'deus_dexter_issue_close',
+    'deus_dexter_issue_create',
+    'deus_dexter_issue_nudge',
+    'deus_dexter_issue_read',
+    'deus_dexter_issue_relink',
+    'deus_dexter_issue_reprioritize',
+    'deus_dexter_issues_live',
+    'deus_dexter_issues_plan',
+    'deus_dexter_mr_read',
     'deus_dexter_probe',
+    'deus_dexter_run_read',
+    'deus_dexter_submit',
+    'deus_dexter_wiki_read',
     'deus_research_web',
   ]);
   assert.ok(!tools.some((tool) => tool.name.startsWith(`deus_${legacyProductName}_`)));
@@ -175,20 +197,62 @@ tools/gate-manifest.sh
     const probe = await invoke('deus_dexter_probe', {});
     assert.equal(probe.profile, 'unknown');
     assert.ok(probe.reasons.length > 0);
-    const status = await invoke('deus_dexter_exec', {
-      command: 'status',
-      args: [],
+    const blocked = await invoke('deus_dexter_issue_nudge', {
+      issue: 'ISSUE-0001',
       workspace: root,
     });
-    assert.equal(status.status, 'blocked_unknown_profile');
-    assert.equal(status.profile, 'unknown');
-    assert.equal(status.raw, undefined);
-    const blocked = await invoke('deus_dexter_exec', {
-      command: 'cmd',
-      args: ['text'],
+    assert.equal(blocked.status, 'rejected');
+    assert.equal(blocked.profile, 'unknown');
+    assert.equal(blocked.exitCode, null);
+    const closure = await invoke('deus_dexter_issue_close', {
       workspace: root,
+      issue: 'ISSUE-0001',
+      reason: 'NOISE',
+      confirm: true,
     });
-    assert.equal(blocked.status, 'blocked_unknown_profile');
+    assert.equal(closure.status, 'rejected');
+    assert.equal(closure.profile, 'unknown');
+    await mkdir(join(root, 'forge/wiki'), { recursive: true });
+    await writeFile(
+      join(root, 'forge/wiki/sample.md'),
+      '---\nslug: sample\ntitle: Sample\n---\n\n' + 'reader evidence '.repeat(500),
+    );
+    const page = await invoke('deus_dexter_wiki_read', {
+      workspace: root,
+      slug: 'sample',
+      section: 'body',
+      limit: 128,
+    });
+    assert.equal(Buffer.byteLength(page.text), 128);
+    assert.ok(page.nextCursor);
+    const continuation = await invoke('deus_dexter_wiki_read', {
+      workspace: root,
+      slug: 'sample',
+      section: 'body',
+      limit: 128,
+      cursor: page.nextCursor,
+    });
+    assert.equal(continuation.revision, page.revision);
+    assert.equal(JSON.stringify(page).includes(root), false);
+    await writeFile(join(root, 'dexter.config.json'), '{}');
+    for (const dir of ['forge/bots', 'forge/.claims', 'bus'])
+      await mkdir(join(root, dir), { recursive: true });
+    const ownership = await invoke('deus_dexter_bots_live', { workspace: root });
+    assert.deepEqual(ownership.bots, []);
+    assert.deepEqual(ownership.claims, []);
+    for (const seq of [1, 2])
+      await writeFile(
+        join(root, `bus/00000${seq}-run.started.md`),
+        `---\nseq: ${seq}\nts: 2026-01-01T00:00:00Z\ntype: run.started\n---\n`,
+      );
+    const recent = await invoke('deus_dexter_events_read', { workspace: root, limit: 1 });
+    assert.equal(recent.events[0].seq, 2);
+    const older = await invoke('deus_dexter_events_read', {
+      workspace: root,
+      cursor: recent.nextCursor,
+    });
+    assert.equal(older.events[0].seq, 1);
+    assert.equal(older.nextCursor, null);
     let calls = [];
     try {
       calls = (await readFile(callsPath, 'utf8'))
@@ -199,8 +263,7 @@ tools/gate-manifest.sh
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
-    assert.equal(calls.filter((argv) => argv[0] === 'status' && argv[1] !== '--help').length, 0);
-    assert.equal(calls.filter((argv) => argv[0] === 'cmd' && argv[1] !== '--help').length, 0);
+    assert.equal(calls.filter((argv) => argv[0] === 'nudge-issue').length, 0);
 
     delete process.env.DEXTER_BIN;
     if (process.env.DEUS_TEST_NO_CLI === '1') {
@@ -264,8 +327,9 @@ tools/gate-manifest.sh
           process.env.DEUS_TEST_NO_CLI === '1'
             ? 'legacy override ignored; default dexter name resolves the PATH fixture'
             : 'legacy override ignored; native dexter discovered on PATH',
-          'unknown-profile status blocked',
-          'blocked cmd',
+          'unknown-profile typed mutation and direct closure blocked',
+          'bounded reader continuation without CLI execution',
+          'unknown-profile bot ownership and event continuation without CLI execution',
           'foreground no-model web',
         ],
       },

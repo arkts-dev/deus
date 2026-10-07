@@ -1,192 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, readFile, writeFile, chmod, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { DexterPlugin, COMMANDS, classifyDoctor, type ProbeReport } from '../src/dexter.js';
+import { fileURLToPath } from 'node:url';
 import { runProcess } from '../src/process.js';
 import { fetchPublic, publicAddress } from '../src/web.js';
 import { researchWeb, searchWeb, webSearchProvider } from '../src/research.js';
 import type { ModelRuntime } from '@earendil-works/pi-coding-agent';
-import { fileURLToPath } from 'node:url';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
-const SIGNED_PROFILE = 'dexter-signed' as const;
-const FAKE_COMMIT = 'f'.repeat(40);
-
-test('probe fails closed when no trusted fingerprints are configured', async () => {
-  const prior = process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
-  delete process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
-  try {
-    const report = await new DexterPlugin(
-      process.env.DEXTER_BIN || 'dexter',
-      process.cwd(),
-    ).probe();
-    assert.equal(report.profile, 'unknown');
-    assert.deepEqual(report.supportedCommands, []);
-    assert.ok(report.reasons.some((reason) => reason.includes('DEUS_DEXTER_TRUSTED_FINGERPRINTS')));
-  } finally {
-    if (prior !== undefined) process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS = prior;
-  }
-  assert.ok(!(COMMANDS as readonly string[]).includes('web'));
-  assert.ok(!(COMMANDS as readonly string[]).includes('config'));
-  assert.ok(!(COMMANDS as readonly string[]).includes('dexter-web'));
-});
-
-test('unknown profile blocks every workspace command', async () => {
-  const priorTrusted = process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
-  delete process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
-  try {
-    const plugin = new DexterPlugin(process.execPath, process.cwd());
-    const report = await plugin.probe();
-    assert.equal(report.profile, 'unknown');
-    assert.ok(report.reasons.some((reason) => reason.includes('DEUS_DEXTER_TRUSTED_FINGERPRINTS')));
-    for (const command of COMMANDS) {
-      const result = await plugin.exec(command, [], '/tmp/workspace');
-      assert.equal(result.status, 'blocked_unknown_profile', command);
-      assert.equal(result.raw, undefined);
-    }
-  } finally {
-    if (priorTrusted !== undefined) process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS = priorTrusted;
-  }
-});
-
-test('probe caches the verification result per commit', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'deus-cache-'));
-  try {
-    const executable = join(dir, 'fake.mjs');
-    await writeFile(executable, `#!${process.execPath}\n`);
-    await chmod(executable, 0o755);
-    const prior = process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
-    delete process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
-    try {
-      const plugin = new DexterPlugin(executable, dir);
-      const first = await plugin.probe();
-      assert.equal(first.profile, 'unknown');
-      assert.equal(await plugin.probe(), first);
-    } finally {
-      if (prior !== undefined) process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS = prior;
-    }
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test('every command receives exact argv and workspace once without shell or retry', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'deus-argv-'));
-  try {
-    const executable = join(dir, 'fake.mjs');
-    const log = join(dir, 'argv.jsonl');
-    await writeFile(
-      executable,
-      `#!${process.execPath}\nimport { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2))+'\\n');\nprocess.exitCode = 7;\n`,
-    );
-    await chmod(executable, 0o755);
-    const plugin = new DexterPlugin(executable, dir);
-    plugin.probe = async (): Promise<ProbeReport> => ({
-      executable,
-      profile: SIGNED_PROFILE,
-      baselineRevision: FAKE_COMMIT,
-      supportedCommands: COMMANDS,
-      diagnostics: {},
-      reasons: [],
-    });
-    for (const command of COMMANDS) {
-      const result = await plugin.exec(command, ['literal;$(touch nope)', 'two words'], dir);
-      assert.equal(result.status, 'executed');
-      assert.equal(result.raw?.exitCode, 7);
-    }
-    const calls = (await readFile(log, 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line));
-    assert.equal(calls.length, COMMANDS.length);
-    for (let index = 0; index < COMMANDS.length; index++)
-      assert.deepEqual(
-        calls[index],
-        COMMANDS[index] === 'init'
-          ? [COMMANDS[index], dir, 'literal;$(touch nope)', 'two words']
-          : [COMMANDS[index], 'literal;$(touch nope)', 'two words', '--dir', dir],
-      );
-    await assert.rejects(plugin.exec('status', ['--dir', '/elsewhere'], dir));
-    await assert.rejects(plugin.exec('status', [], 'relative'));
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test('signal termination and missing executable remain raw uncertain outcomes without retry', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'deus-uncertain-'));
-  try {
-    const executable = join(dir, 'terminated.mjs');
-    const log = join(dir, 'argv.jsonl');
-    await writeFile(
-      executable,
-      `#!${process.execPath}\nimport { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(log)}, 'called\\n');\nprocess.kill(process.pid, 'SIGTERM');\n`,
-    );
-    await chmod(executable, 0o755);
-    const recognized: ProbeReport = {
-      executable,
-      profile: SIGNED_PROFILE,
-      baselineRevision: FAKE_COMMIT,
-      supportedCommands: COMMANDS,
-      diagnostics: {},
-      reasons: [],
-    };
-    const plugin = new DexterPlugin(executable, dir);
-    plugin.probe = async () => recognized;
-    const terminated = await plugin.exec('answer', ['REQ-1', 'answer'], dir);
-    assert.equal(terminated.status, 'executed');
-    assert.equal(terminated.raw?.signal, 'SIGTERM');
-    assert.equal((await readFile(log, 'utf8')).trim(), 'called');
-
-    const absent = new DexterPlugin(join(dir, 'missing-executable'), dir);
-    absent.probe = async () => recognized;
-    const lost = await absent.exec('cmd', ['instruction'], dir);
-    assert.equal(lost.status, 'executed');
-    assert.equal(lost.raw?.exitCode, null);
-    assert.ok(lost.raw?.error);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test('run output is bounded without terminating the worker', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'deus-run-output-'));
-  try {
-    const executable = join(dir, 'large-output.mjs');
-    await writeFile(
-      executable,
-      `#!${process.execPath}\nprocess.stdout.write('x'.repeat(600_000));\n`,
-    );
-    await chmod(executable, 0o755);
-    const plugin = new DexterPlugin(executable, dir);
-    plugin.probe = async (): Promise<ProbeReport> => ({
-      executable,
-      profile: SIGNED_PROFILE,
-      baselineRevision: FAKE_COMMIT,
-      supportedCommands: COMMANDS,
-      diagnostics: {},
-      reasons: [],
-    });
-    const result = await plugin.exec('run', [], dir);
-    assert.equal(result.raw?.exitCode, 0);
-    assert.equal(result.raw?.signal, null);
-    assert.equal(result.raw?.truncated, true);
-    assert.ok(result.raw!.stdout.length <= 512_000);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test('doctor output separates the env-sensitive provider probe from workspace checks', () => {
-  const m = (stdout: string) => ({ stdout, stderr: '' });
-  assert.equal(classifyDoctor(m('  FAIL model\n')), 'agent-env-failed');
-  assert.equal(classifyDoctor(m('  FAIL artifact\n')), 'workspace-failed');
-  assert.equal(classifyDoctor(m('  OK model\n')), 'provider-ok');
-  assert.equal(classifyDoctor(m('  OK verification command\n')), 'absent');
-  assert.equal(classifyDoctor(m('unrelated')), undefined);
-});
 
 test('an explicit unlimited process deadline lets a delayed command finish', async () => {
   const result = await runProcess(
@@ -197,47 +19,6 @@ test('an explicit unlimited process deadline lets a delayed command finish', asy
   assert.equal(result.timedOut, false);
   assert.equal(result.exitCode, 0);
   assert.match(result.stdout, /done/);
-});
-
-test('abort terminates a running Dexter command without retry', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'deus-abort-'));
-  try {
-    const executable = join(dir, 'hang.mjs');
-    const started = join(dir, 'started');
-    await writeFile(
-      executable,
-      `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(started)}, 'yes');\nsetInterval(() => {}, 1000);\n`,
-    );
-    await chmod(executable, 0o755);
-    const plugin = new DexterPlugin(executable, dir);
-    plugin.probe = async (): Promise<ProbeReport> => ({
-      executable,
-      profile: SIGNED_PROFILE,
-      baselineRevision: FAKE_COMMIT,
-      supportedCommands: COMMANDS,
-      diagnostics: {},
-      reasons: [],
-    });
-    const controller = new AbortController();
-    const pending = plugin.exec('run', [], dir, controller.signal);
-    for (let attempt = 0; attempt < 100; attempt++) {
-      try {
-        await readFile(started);
-        break;
-      } catch {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-    }
-    assert.equal(await readFile(started, 'utf8'), 'yes');
-    controller.abort();
-    const result = await pending;
-    assert.equal(result.status, 'executed');
-    assert.equal(result.raw?.cancelled, true);
-    assert.equal(result.raw?.timedOut, false);
-    assert.equal(result.raw?.signal, 'SIGTERM');
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
 });
 
 test('public web guards and provider configuration reject unsafe inputs', async () => {
@@ -265,60 +46,21 @@ test('web research is a bounded foreground call and reports no model as unavaila
 
 test('minimal prompt and lazy skills describe tracked artifact contracts', async () => {
   const prompt = await readFile(join(repository, 'prompts/kernel.md'), 'utf8');
-  assert.match(prompt, /Dexter is the sole execution orchestrator/);
-  assert.match(prompt, /never retry automatically/i);
+  assert.match(prompt, /`deus_dexter_\*` API is the sole mechanism for mutating/);
+  assert.match(prompt, /For reading, `deus_dexter_\*` are preferred/);
+  assert.match(prompt, /if they are insufficient, ordinary read-only tools are allowed/);
+  assert.match(
+    prompt,
+    /If `profile` is `unknown`, any mutation of the Dexter workspace is prohibited/,
+  );
+  assert.match(prompt, /Never retry failed mutations automatically/);
+  const common = ['kind', 'id', 'created_at', 'updated_at', 'status', 'references'];
+  const research = [...common, 'question', 'mode', 'provider', 'sources', 'gaps'];
   const fields = {
-    designer: [
-      'kind',
-      'id',
-      'created_at',
-      'updated_at',
-      'status',
-      'references',
-      'problem',
-      'options',
-      'decision',
-      'acceptance',
-    ],
-    'local-research': [
-      'kind',
-      'id',
-      'created_at',
-      'updated_at',
-      'status',
-      'references',
-      'question',
-      'mode',
-      'provider',
-      'sources',
-      'gaps',
-    ],
-    'web-research': [
-      'kind',
-      'id',
-      'created_at',
-      'updated_at',
-      'status',
-      'references',
-      'question',
-      'mode',
-      'provider',
-      'sources',
-      'gaps',
-    ],
-    'dexter-control': [
-      'kind',
-      'id',
-      'created_at',
-      'updated_at',
-      'status',
-      'references',
-      'design_ref',
-      'objective',
-      'scope',
-      'exclusions',
-      'acceptance',
-    ],
+    designer: [...common, 'problem', 'options', 'decision', 'acceptance'],
+    'local-research': research,
+    'web-research': research,
+    'dexter-control': [...common, 'design_ref', 'objective', 'scope', 'exclusions', 'acceptance'],
   };
   for (const [skill, required] of Object.entries(fields)) {
     const source = await readFile(join(repository, 'skills', skill, 'SKILL.md'), 'utf8');
@@ -327,37 +69,48 @@ test('minimal prompt and lazy skills describe tracked artifact contracts', async
     assert.match(source, /\.deus\//);
   }
   const designer = await readFile(join(repository, 'skills/designer/SKILL.md'), 'utf8');
-  assert.ok(designer.trim().split(/\s+/).length < 303, 'designer must stay shorter than its base');
-  assert.match(designer, /never amend/i);
-  assert.match(designer, /never write inside `fs\/` or `forge\/`/i);
-  assert.match(designer, /deus_design_check/);
-  assert.match(designer, /deus_design_write/);
-  assert.match(designer, /Reuse settled answers/);
-  assert.match(designer, /Ask only consequential unresolved questions/);
-  assert.match(designer, /after their prerequisites are settled/);
-  assert.match(designer, /Investigate inspectable facts yourself/);
-  assert.match(designer, /designer does not implement or prototype/);
-  assert.match(designer, /user confirmation before writing/);
-  assert.match(designer, /destination approval alone is insufficient/);
-  assert.match(designer, /Allow quantitative requirements/);
-  assert.match(designer, /review every warning/);
-  assert.match(designer, /stop questioning[\s\S]*experiment[\s\S]*Resume from observations/);
+  assert.ok(designer.trim().split(/\s+/).length < 303);
+  for (const pattern of [
+    /never amend/i,
+    /never write inside `fs\/` or `forge\/`/i,
+    /deus_design_check/,
+    /deus_design_write/,
+    /Reuse settled answers/,
+    /Ask only consequential unresolved questions/,
+    /after their prerequisites are settled/,
+    /Investigate inspectable facts yourself/,
+    /designer does not implement or prototype/,
+    /user confirmation before writing/,
+    /destination approval alone is insufficient/,
+    /Allow quantitative requirements/,
+    /review every warning/,
+    /stop questioning[\s\S]*experiment[\s\S]*Resume from observations/,
+  ])
+    assert.match(designer, pattern);
   const simplify = await readFile(join(repository, 'skills/simplify-review/SKILL.md'), 'utf8');
   assert.match(simplify, /Review project source read-only/);
-  assert.match(simplify, /Do not call `deus_dexter_probe` or `deus_dexter_exec`/);
+  assert.match(simplify, /Do not mutate Dexter state/);
   assert.match(simplify, /do not.*edit project source/i);
   const control = await readFile(join(repository, 'skills/dexter-control/SKILL.md'), 'utf8');
-  assert.match(control, /complete product text as `submit` arguments/);
+  assert.match(control, /complete product text as the `body`/);
   assert.match(control, /Dexter does not automatically read it/);
   const productControl = await readFile(
     join(repository, 'skills/product-control/SKILL.md'),
     'utf8',
   );
-  assert.match(productControl, /\bPRODUCT\b/);
-  assert.match(productControl, /\bNOISE\b/);
-  assert.match(productControl, /\bDEAD\b/);
-  assert.match(productControl, /deus_board_live/);
-  assert.match(productControl, /deus_board_plan/);
-  assert.match(productControl, /deus_board_close/);
-  assert.match(productControl, /Never run the `run` drain/i);
+  for (const pattern of [
+    /\bPRODUCT\b/,
+    /\bNOISE\b/,
+    /\bDEAD\b/,
+    /deus_dexter_issues_live/,
+    /deus_dexter_issues_plan/,
+    /deus_dexter_issue_close/,
+    /Never run the `run` drain/i,
+  ])
+    assert.match(productControl, pattern);
+  for (const path of ['AGENTS.md', 'skills/dexter-control/SKILL.md']) {
+    const text = await readFile(join(repository, path), 'utf8');
+    assert.match(text, /Read-only operations are allowed as usual/);
+    assert.doesNotMatch(text, /Do not read, parse/);
+  }
 });
