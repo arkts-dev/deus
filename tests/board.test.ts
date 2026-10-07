@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { applyClose, classify, loadBoard, planBoard, preconditions } from '../src/board.js';
 import boardTool from '../src/board.js';
+import { DexterPlugin, MUTATION_COMMANDS, type ProbeReport } from '../src/dexter.js';
 
 const issue = (id: string, body: string, extra = '') => `---
 id: ${id}
@@ -88,7 +89,7 @@ test('plan closes only safe noise, projects saturation, and the close edit is bo
     const board = await loadBoard(root);
     const byId = (id: string) => board.issues.find((entry) => entry.id === id)!;
     assert.deepEqual(preconditions(byId('ISSUE-0004'), board), ['active claim']);
-    assert.ok(preconditions(byId('ISSUE-0001'), board).includes('epic has open children'));
+    assert.ok(preconditions(byId('ISSUE-0001'), board).includes('issue has open children'));
     const plan = planBoard(board);
     assert.deepEqual(plan.saturation, { before: 3, after: 4 });
     assert.deepEqual(
@@ -96,7 +97,7 @@ test('plan closes only safe noise, projects saturation, and the close edit is bo
       ['ISSUE-0002'],
     );
     assert.ok(plan.reports.some((report) => report.includes('ISSUE-0004')));
-    assert.ok(!plan.commands.some((command) => command.command === 'run'));
+    assert.ok(plan.actions.every((action) => action.tool.startsWith('deus_dexter_issue_')));
     await assert.rejects(
       applyClose(root, board, 'ISSUE-0002', 'SUPERSEDED'),
       /requires a successor/,
@@ -106,6 +107,7 @@ test('plan closes only safe noise, projects saturation, and the close edit is bo
       applyClose(root, board, 'ISSUE-0003', 'NOISE'),
       /refusing to close PRODUCT/,
     );
+    await assert.rejects(applyClose(root, board, 'ISSUE-0003', 'SUPERSEDED', 'ISSUE-0003'));
     assert.equal(
       (await applyClose(root, board, 'ISSUE-0003', 'SUPERSEDED', 'ISSUE-0001')).changed,
       true,
@@ -123,26 +125,65 @@ test('plan closes only safe noise, projects saturation, and the close edit is bo
   }
 });
 
-test('the close tool enforces the approval gate', async () => {
+test('the close tool enforces approval, trust and cancellation; reads remain available', async (t) => {
+  let trusted = false;
+  let probes = 0;
+  const controller = new AbortController();
+  let cancel = false;
+  t.mock.method(DexterPlugin.prototype, 'probe', async (): Promise<ProbeReport> => {
+    probes++;
+    if (cancel) controller.abort();
+    return {
+      executable: 'fixture',
+      profile: trusted ? 'dexter-signed' : 'unknown',
+      baselineRevision: '',
+      supportedCommands: trusted ? MUTATION_COMMANDS : [],
+      diagnostics: {},
+      reasons: trusted ? [] : ['Fixture signature rejected'],
+    };
+  });
   const root = await fixture();
   try {
     const tools = new Map<string, { execute: (...args: unknown[]) => Promise<unknown> }>();
     boardTool({
       registerTool: (tool: { name: string }) => tools.set(tool.name, tool as never),
     } as never);
-    const close = tools.get('deus_board_close')!;
-    const call = async (confirm: boolean) => {
+    assert.deepEqual([...tools.keys()].sort(), [
+      'deus_dexter_issue_close',
+      'deus_dexter_issues_live',
+      'deus_dexter_issues_plan',
+    ]);
+    const close = tools.get('deus_dexter_issue_close')!;
+    const call = async (confirm: boolean, signal?: AbortSignal) => {
       const result = (await close.execute(
         'test',
         { workspace: root, issue: 'ISSUE-0002', reason: 'NOISE', confirm },
+        signal,
         undefined,
-        undefined,
-        {},
+        { cwd: root },
       )) as { content: { text: string }[] };
       return JSON.parse(result.content[0]!.text);
     };
-    assert.equal((await call(false)).status, 'refused');
-    assert.equal((await call(true)).status, 'applied');
+    const path = join(root, 'forge', 'issues', 'ISSUE-0002-noise.md');
+    const before = await readFile(path, 'utf8');
+    assert.equal((await call(false)).status, 'rejected');
+    assert.equal(probes, 0);
+    const rejected = await call(true);
+    assert.equal(rejected.profile, 'unknown');
+    assert.equal(rejected.status, 'rejected');
+    assert.deepEqual(rejected.reasons, ['Fixture signature rejected']);
+    assert.equal(await readFile(path, 'utf8'), before);
+    assert.ok(await tools.get('deus_dexter_issues_live')!.execute('test', { workspace: root }));
+    trusted = cancel = true;
+    const cancelled = await call(true, controller.signal);
+    assert.equal(cancelled.status, 'rejected');
+    assert.equal(cancelled.cancelled, true);
+    assert.equal(await readFile(path, 'utf8'), before);
+    cancel = false;
+    const closed = await call(true);
+    assert.equal(closed.status, 'completed');
+    assert.equal(closed.profile, 'dexter-signed');
+    assert.equal(probes, 3);
     assert.match(
       await readFile(join(root, 'forge', 'issues', 'ISSUE-0002-noise.md'), 'utf8'),
       /status: closed/,
@@ -164,7 +205,7 @@ test('a rejected dependency does not satisfy readiness', async () => {
     assert.ok(board.blocked.includes('ISSUE-0003'));
     assert.equal(board.ready.includes('ISSUE-0003'), false);
     assert.equal(
-      planBoard(board).commands.some((command) => command.argv[0] === 'ISSUE-0003'),
+      planBoard(board).actions.some((action) => action.parameters.issue === 'ISSUE-0003'),
       false,
     );
   } finally {
@@ -206,7 +247,7 @@ test('the live board lists only non-terminal issues without bodies', async () =>
     boardTool({
       registerTool: (tool: { name: string }) => tools.set(tool.name, tool as never),
     } as never);
-    const snapshot = tools.get('deus_board_live')!;
+    const snapshot = tools.get('deus_dexter_issues_live')!;
     const result = (await snapshot.execute(
       'test',
       { workspace: root },

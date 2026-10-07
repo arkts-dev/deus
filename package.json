@@ -50,7 +50,8 @@
     ]
   },
   "dependencies": {
-    "pi-web-access": "0.29.0"
+    "pi-web-access": "0.29.0",
+    "yaml": "2.9.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

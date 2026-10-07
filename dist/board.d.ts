@@ -46,9 +46,9 @@ export declare function planBoard(board: Board): {
         unblocks: string[];
         errors: string[];
     }[];
-    commands: {
-        command: string;
-        argv: string[];
+    actions: {
+        tool: string;
+        parameters: Record<string, unknown>;
         reason: string;
     }[];
     reports: string[];
