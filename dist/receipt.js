@@ -6,6 +6,19 @@ export function boundedText(text, bytes) {
         end--;
     return buffer.subarray(0, end).toString('utf8');
 }
+export function bytePage(content, offset, limit) {
+    const bytes = Buffer.from(content);
+    if (!Number.isSafeInteger(offset) ||
+        offset < 0 ||
+        offset > bytes.length ||
+        (offset < bytes.length && (bytes[offset] & 0xc0) === 0x80))
+        throw new Error('Invalid UTF-8 byte offset');
+    const text = boundedText(bytes.subarray(offset).toString('utf8'), limit);
+    const end = offset + Buffer.byteLength(text);
+    if (offset < bytes.length && end === offset)
+        throw new Error('Byte limit is too small for the next UTF-8 character');
+    return { text, nextOffset: end < bytes.length ? end : null };
+}
 export function mutationReceipt(status, p = {}) {
     const stdout = redact(p.stdout ?? '');
     const stderr = redact(p.stderr ?? '');

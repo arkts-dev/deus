@@ -6,4 +6,4 @@ export interface SignatureVerification {
     error: string | null;
     diagnostics: Record<string, ProcessResult>;
 }
-export declare function verifyCommitSignature(executable: string, cwd: string): Promise<SignatureVerification>;
+export declare function verifyCommitSignature(executable: string, cwd: string, signal?: AbortSignal): Promise<SignatureVerification>;

@@ -8,7 +8,7 @@ import { fetchPublic } from './web.js';
 import { searchWithWebAccess } from './web-access.js';
 import { newReceipt, validateFindings, briefDigest, } from './evidence.js';
 import { isolatedLoader, skillsRoot } from './resources.js';
-import { redact, redactedJson } from './process.js';
+import { redact, jsonResult } from './process.js';
 export function webConfigFromEnv() {
     return {
         exaKey: process.env.EXA_API_KEY,
@@ -90,10 +90,7 @@ export async function searchWeb(query, config, signal) {
     }
     throw new Error('web_unavailable: configure a search provider');
 }
-const output = (data) => ({
-    content: [{ type: 'text', text: redactedJson(data) }],
-    details: {},
-});
+const output = (data) => jsonResult(data, 0);
 export function externalResearchTools(config, receipts, consume) {
     return [
         {

@@ -15,6 +15,11 @@ export function redact(value) {
 export function redactedJson(value, space) {
     return JSON.stringify(value, (_key, item) => (typeof item === 'string' ? redact(item) : item), space);
 }
+export const textResult = (text) => ({
+    content: [{ type: 'text', text }],
+    details: {},
+});
+export const jsonResult = (value, space = 2) => textResult(redactedJson(value, space));
 export function runProcess(executable, argv, options) {
     if (argv.some((a) => a.includes('\0')) || executable.includes('\0'))
         throw new Error('Invalid process argument');

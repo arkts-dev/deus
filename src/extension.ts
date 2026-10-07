@@ -1,3 +1,4 @@
+import { readOnly, type ToolRegistrar } from './tool-registry.js';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Type, type TSchema, type Static } from 'typebox';
 import { readFile } from 'node:fs/promises';
@@ -5,15 +6,11 @@ import { join } from 'node:path';
 import { DexterPlugin } from './dexter.js';
 import { ArtifactReader, SECTIONS } from './artifacts.js';
 import { botsLive, EventReader } from './operations.js';
-import { redactedJson } from './process.js';
+import { jsonResult as output } from './process.js';
 import { packageRoot } from './resources.js';
 import { researchWeb, webConfigFromEnv } from './research.js';
 
-const output = (value: unknown) => ({
-  content: [{ type: 'text' as const, text: redactedJson(value, 2) }],
-  details: {},
-});
-export default function extension(pi: ExtensionAPI) {
+export function registerDexterTools(pi: ToolRegistrar) {
   const clients = new Map<string, DexterPlugin>();
   const dexter = (cwd: string) => {
     const executable = process.env.DEXTER_BIN || 'dexter';
@@ -21,12 +18,6 @@ export default function extension(pi: ExtensionAPI) {
     if (!clients.has(key)) clients.set(key, new DexterPlugin(executable, cwd));
     return clients.get(key)!;
   };
-  pi.on('before_agent_start', async (event) => ({
-    systemPrompt:
-      event.systemPrompt +
-      '\n\n' +
-      (await readFile(join(packageRoot, 'prompts/kernel.md'), 'utf8')),
-  }));
   function mutation<S extends TSchema>(
     name: string,
     description: string,
@@ -45,6 +36,7 @@ export default function extension(pi: ExtensionAPI) {
   }
   pi.registerTool({
     name: 'deus_dexter_probe',
+    annotations: readOnly,
     label: 'Probe Dexter',
     description:
       'Inspect the installed Dexter CLI and verify its commit signature. Returns raw diagnostics.',
@@ -111,6 +103,7 @@ export default function extension(pi: ExtensionAPI) {
   );
   pi.registerTool({
     name: 'deus_dexter_bots_live',
+    annotations: readOnly,
     label: 'Live bot ownership',
     description:
       'Read working bots (including stale owners), issue/MR/run targets and correlated claims. Local PID or remote heartbeat liveness; cooldown is a persisted-config policy estimate, not observed worker configuration. Read-only, no CLI.',
@@ -122,6 +115,7 @@ export default function extension(pi: ExtensionAPI) {
   const events = new EventReader();
   pi.registerTool({
     name: 'deus_dexter_events_read',
+    annotations: readOnly,
     label: 'Read recent events',
     description:
       'Read local bus summaries newest first, then older pages using a path-free cursor. Default 20, maximum 100 events and 16 KiB summary bytes per page; no bodies. Appends do not disrupt continuation; cursors expire on reload. Read-only, no CLI.',
@@ -139,6 +133,7 @@ export default function extension(pi: ExtensionAPI) {
     const idField = kind === 'wiki' ? 'slug' : kind;
     pi.registerTool({
       name: `deus_dexter_${kind}_read`,
+      annotations: readOnly,
       label: `Read ${kind}`,
       description: `Read one local ${kind} section without CLI execution. Default: ${kind === 'run' ? 'metadata' : 'summary (metadata/body)'}, not history. limit: UTF-8 bytes, default 4096, max 16384. Cursors expire on reload and reject changed content. Run transcript is stdout, not the Pi session dump.`,
       parameters: Type.Object({
@@ -163,6 +158,7 @@ export default function extension(pi: ExtensionAPI) {
   }
   pi.registerTool({
     name: 'deus_research_web',
+    annotations: { ...readOnly, idempotentHint: false },
     label: 'Research public web',
     description:
       'Run one foreground isolated public web research session with source receipts and bounded requests.',
@@ -178,4 +174,14 @@ export default function extension(pi: ExtensionAPI) {
       return output(await researchWeb(p.question, config, undefined, signal));
     },
   });
+}
+
+export default function extension(pi: ExtensionAPI) {
+  registerDexterTools(pi);
+  pi.on('before_agent_start', async (event) => ({
+    systemPrompt:
+      event.systemPrompt +
+      '\n\n' +
+      (await readFile(join(packageRoot, 'prompts/kernel.md'), 'utf8')),
+  }));
 }

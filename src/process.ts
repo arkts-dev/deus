@@ -20,6 +20,12 @@ export function redactedJson(value: unknown, space?: number): string {
     space,
   );
 }
+export const textResult = (text: string) => ({
+  content: [{ type: 'text' as const, text }],
+  details: {},
+});
+export const jsonResult = (value: unknown, space = 2) => textResult(redactedJson(value, space));
+
 export interface ProcessResult {
   stdout: string;
   stderr: string;

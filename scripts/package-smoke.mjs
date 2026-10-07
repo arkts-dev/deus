@@ -29,6 +29,8 @@ try {
     'dist/board.js',
     'dist/dexter.js',
     'dist/operations.js',
+    'dist/mcp.js',
+    'dist/mcp-cli.js',
     'dist/research.js',
     'prompts/kernel.md',
     'skills.lock.json',
@@ -81,7 +83,7 @@ try {
   const manifest = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8'));
   assert.equal(manifest.version, '0.3.0');
   assert.equal(manifest.license, 'Apache-2.0');
-  assert.equal(manifest.bin, undefined);
+  assert.deepEqual(manifest.bin, { 'deus-mcp': 'dist/mcp-cli.js' });
   assert.deepEqual(manifest.pi.skills, ['skills']);
   const { loadSkillsFromDir } = await import('@earendil-works/pi-coding-agent');
   const discovered = loadSkillsFromDir({
@@ -310,6 +312,63 @@ tools/gate-manifest.sh
   } finally {
     installedSdk.ModelRuntime.create = originalCreate;
   }
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+  const executable = join(root, 'install/node_modules/.bin/deus-mcp');
+  const help = await runProcess(executable, ['--help'], { cwd: root });
+  assert.ok(succeeded(help), help.stderr);
+  assert.match(help.stdout, /--workspace/);
+  const mcp = new Client({ name: 'deus-package-smoke', version: '1' });
+  const transport = new StdioClientTransport({
+    command: executable,
+    args: ['--workspace', root],
+    env: { ...process.env, DEUS_DEXTER_TRUSTED_FINGERPRINTS: '' },
+    stderr: 'pipe',
+  });
+  try {
+    await mcp.connect(transport);
+    assert.deepEqual(
+      (await mcp.listTools()).tools.map((tool) => tool.name).sort(),
+      [
+        ...tools.map((tool) => tool.name),
+        'deus_workspace_info',
+        'deus_skill_read',
+        'deus_artifact_list',
+        'deus_artifact_read',
+        'deus_artifact_write',
+      ].sort(),
+    );
+    const call = async (name, args = {}) => {
+      const result = await mcp.callTool({ name, arguments: args });
+      assert.ok(!result.isError, JSON.stringify(result));
+      return JSON.parse(result.content[0].text);
+    };
+    assert.equal((await call('deus_workspace_info')).workspace, root);
+    const skill = await mcp.callTool({ name: 'deus_skill_read', arguments: { name: 'designer' } });
+    assert.equal(
+      skill.content[0].text,
+      await readFile(join(packageDir, 'skills/designer/SKILL.md'), 'utf8'),
+    );
+    assert.equal(
+      (await call('deus_dexter_issue_nudge', { workspace: root, issue: 'ISSUE-0001' })).status,
+      'rejected',
+    );
+    assert.equal(
+      (await call('deus_dexter_events_read', { workspace: root, limit: 1 })).events[0].seq,
+      2,
+    );
+    assert.equal(
+      (
+        await mcp.callTool({
+          name: 'deus_dexter_issues_live',
+          arguments: { workspace: '/elsewhere' },
+        })
+      ).isError,
+      true,
+    );
+  } finally {
+    await mcp.close();
+  }
   const { verifySkillIntegrity } = await import(
     pathToFileURL(join(packageDir, 'dist/resources.js')).href
   );
@@ -331,6 +390,7 @@ tools/gate-manifest.sh
           'bounded reader continuation without CLI execution',
           'unknown-profile bot ownership and event continuation without CLI execution',
           'foreground no-model web',
+          'installed MCP executable, current tool discovery, workspace binding, skills and typed trust refusal',
         ],
       },
       null,
