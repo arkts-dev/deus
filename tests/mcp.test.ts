@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { mkdir, readFile, writeFile, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createDeusServer } from '../src/mcp.js';
@@ -71,6 +72,14 @@ test('MCP exposes current typed tools and original skills with accurate annotati
       'deus_artifact_write',
     ].sort(),
   );
+  for (const tool of tools)
+    assert.deepEqual(
+      [...(tool.inputSchema.required ?? [])].sort(),
+      Object.keys(tool.inputSchema.properties ?? {}).sort(),
+      tool.name,
+    );
+  await reject('deus_artifact_read', { path: 'README.md' });
+  await reject('deus_artifact_list', { path: '.' });
   assert.ok(!names.includes('deus_dexter_exec'));
   assert.ok(!names.some((name) => name.startsWith('deus_board_')));
   for (const suffix of [
@@ -119,8 +128,12 @@ test('MCP preserves trust refusal, reader pagination and web no-model behavior',
   for (const [name, args] of [
     ['deus_dexter_submit', { title: 'task', body: '', workspace: root }],
     [
+      'deus_dexter_issue_create',
+      { title: 'task', body: '', workspace: root, parent: null, dependencies: [], priority: 3 },
+    ],
+    [
       'deus_dexter_issue_close',
-      { workspace: root, issue: 'ISSUE-0001', reason: 'NOISE', confirm: true },
+      { workspace: root, issue: 'ISSUE-0001', reason: 'NOISE', successor: null, confirm: true },
     ],
   ] as const) {
     const receipt = await call(name, args);
@@ -128,7 +141,7 @@ test('MCP preserves trust refusal, reader pagination and web no-model behavior',
     assert.equal(receipt.profile, 'unknown');
   }
   await put('forge/wiki/sample.md', '---\nslug: sample\n---\n' + 'reader evidence '.repeat(30));
-  const request = { workspace: root, slug: 'sample', section: 'body', limit: 16 };
+  const request = { workspace: root, slug: 'sample', section: 'body', cursor: null, limit: 16 };
   const first = await call('deus_dexter_wiki_read', request);
   const second = await call('deus_dexter_wiki_read', { ...request, cursor: first.nextCursor });
   assert.equal(second.revision, first.revision);
@@ -137,11 +150,16 @@ test('MCP preserves trust refusal, reader pagination and web no-model behavior',
       `bus/00000${seq}-run.started.md`,
       `---\nseq: ${seq}\nts: 2026-10-07T07:00:00Z\ntype: run.started\n---\n`,
     );
-  const events = await call('deus_dexter_events_read', { workspace: root, limit: 1 });
+  const events = await call('deus_dexter_events_read', { workspace: root, cursor: null, limit: 1 });
   assert.equal(events.events[0].seq, 2);
   assert.equal(
-    (await call('deus_dexter_events_read', { workspace: root, cursor: events.nextCursor }))
-      .events[0].seq,
+    (
+      await call('deus_dexter_events_read', {
+        workspace: root,
+        cursor: events.nextCursor,
+        limit: 20,
+      })
+    ).events[0].seq,
     1,
   );
   await put('dexter.config.json', '{}');
@@ -172,9 +190,13 @@ test('MCP writes designs once, reads artifacts, and rejects path escapes includi
     ),
   );
   assert.equal(responses.filter((r) => r.isError).length, 1);
-  assert.equal((await call('deus_artifact_read', { path: '.deus/design/mcp.md' })).text, design);
   assert.equal(
-    (await call('deus_artifact_list', { path: '.deus/design' })).entries[0].name,
+    (await call('deus_artifact_read', { path: '.deus/design/mcp.md', offset: 0, maxBytes: 4096 }))
+      .text,
+    design,
+  );
+  assert.equal(
+    (await call('deus_artifact_list', { path: '.deus/design', offset: 0 })).entries[0].name,
     'mcp.md',
   );
   for (const path of [
@@ -188,9 +210,16 @@ test('MCP writes designs once, reads artifacts, and rejects path escapes includi
     '.env',
     'dexter.config.json',
   ])
-    await reject('deus_artifact_read', { path });
-  for (const path of ['escape/x.md', 'bus/design.md', '.git/design.md', '.env'])
+    await reject('deus_artifact_read', { path, offset: 0, maxBytes: 4096 });
+  for (const path of ['escape/x.md', 'bus/design.md', '.git/design.md', '.env']) {
     await reject('deus_design_write', { path, content: design });
+    await reject('deus_design_write', { path: ` ${path} `, content: design });
+  }
+  await assert.rejects(readFile(join(outside.root, 'x.md')), { code: 'ENOENT' });
+  assert.equal(
+    (await call('deus_design_check', { path: ' .deus/design/trimmed.md ', content: design })).path,
+    '.deus/design/trimmed.md',
+  );
   await mkdir(join(root, 'forge'));
   await symlink(outside.root, join(root, 'forge/issues'));
   for (const name of [
@@ -201,8 +230,8 @@ test('MCP writes designs once, reads artifacts, and rejects path escapes includi
     await reject(
       name,
       name.endsWith('close')
-        ? { workspace: root, issue: 'ISSUE-0001', reason: 'NOISE', confirm: true }
-        : { workspace: root },
+        ? { workspace: root, issue: 'ISSUE-0001', reason: 'NOISE', successor: null, confirm: true }
+        : { workspace: root, cursor: null, limit: 20 },
     );
 });
 
@@ -217,9 +246,25 @@ test('MCP preserves board planning, close confirmation and trusted mutation rece
     'forge/issues/ISSUE-0000.md',
     '---\nid: ISSUE-0000\nkind: epic\nstatus: open\nparent: null\ndepends_on: []\n---\nCompiler rejects invalid programs.\n',
   );
-  assert.equal((await call('deus_dexter_issues_live', { workspace: root })).issues.length, 2);
-  assert.ok((await call('deus_dexter_issues_plan', { workspace: root })).classifications);
-  const args = { workspace: root, issue: 'ISSUE-0001', reason: 'NOISE' };
+  assert.equal(
+    (await call('deus_dexter_issues_live', { workspace: root, cursor: null, limit: 20 })).records
+      .length,
+    2,
+  );
+  assert.ok(
+    (await call('deus_dexter_issues_plan', { workspace: root, cursor: null, limit: 20 })).records,
+  );
+  const page = await call('deus_dexter_issues_live', { workspace: root, cursor: null, limit: 1 });
+  assert.equal(page.records.length, 1);
+  const next = await call('deus_dexter_issues_live', {
+    workspace: root,
+    cursor: page.nextCursor,
+    limit: 1,
+  });
+  assert.equal(next.records.length, 1);
+  assert.notEqual(page.records[0].id, next.records[0].id);
+  await reject('deus_dexter_issues_plan', { workspace: root, cursor: page.nextCursor, limit: 1 });
+  const args = { workspace: root, issue: 'ISSUE-0001', reason: 'NOISE', successor: null };
   await reject('deus_dexter_issue_close', args);
   assert.equal(
     (await call('deus_dexter_issue_close', { ...args, confirm: false })).status,
@@ -229,7 +274,12 @@ test('MCP preserves board planning, close confirmation and trusted mutation rece
     (await call('deus_dexter_issue_close', { ...args, confirm: true })).status,
     'completed',
   );
-  assert.equal((await call('deus_dexter_issues_live', { workspace: root })).issues.length, 1);
+  await reject('deus_dexter_issues_live', { workspace: root, cursor: page.nextCursor, limit: 1 });
+  assert.equal(
+    (await call('deus_dexter_issues_live', { workspace: root, cursor: null, limit: 20 })).records
+      .length,
+    1,
+  );
 });
 
 test('MCP persists reports without overwriting or touching source', async (t) => {
@@ -238,7 +288,10 @@ test('MCP persists reports without overwriting or touching source', async (t) =>
     '---\nkind: research\nid: sample\ncreated_at: 2026-10-07\nupdated_at: 2026-10-07\nstatus: draft\nreferences: []\nquestion: What changed?\nmode: local\nprovider: filesystem\nsources: []\ngaps: []\n---\nEvidence is incomplete.\n';
   const path = '.deus/research/sample.md';
   assert.equal((await call('deus_artifact_write', { path, content })).status, 'written');
-  assert.equal((await call('deus_artifact_read', { path })).text, content);
+  assert.equal(
+    (await call('deus_artifact_read', { path, offset: 0, maxBytes: 4096 })).text,
+    content,
+  );
   for (const path of [
     '.deus/research/sample.md',
     'fs/code.ts',
@@ -292,6 +345,13 @@ test('remote artifact pagination preserves UTF-8 and redacts before slicing acro
   const text = '字Привет🙂private-artifact-token end';
   const expected = text.replace('private-artifact-token', '[REDACTED]');
   await writeFile(join(root, 'unicode.txt'), text);
+  await writeFile(join(root, 'invalid.txt'), Buffer.from([0x61, 0xff, 0x62]));
+  const invalid = await client.callTool({
+    name: 'deus_artifact_read',
+    arguments: { path: 'invalid.txt', offset: 0, maxBytes: 12 },
+  });
+  assert.equal(invalid.isError, true);
+  assert.match((invalid.content as { text: string }[])[0]!.text, /not valid UTF-8/);
   let offset: number | null = 0,
     collected = '',
     revision = '';
@@ -305,7 +365,10 @@ test('remote artifact pagination preserves UTF-8 and redacts before slicing acro
     offset = part.nextOffset;
   }
   assert.equal(collected, expected);
-  for (const args of [{ offset: 1 }, { offset: 0, maxBytes: 1 }])
+  for (const args of [
+    { offset: 1, maxBytes: 4 },
+    { offset: 0, maxBytes: 1 },
+  ])
     assert.equal(
       (
         await client.callTool({
@@ -315,4 +378,46 @@ test('remote artifact pagination preserves UTF-8 and redacts before slicing acro
       ).isError,
       true,
     );
+});
+
+test('wire readers redact once before pagination, retaining byte limits, offsets and digest', async (t) => {
+  const { root, call, put } = await setup(t);
+  const raw = 'password=abcdefgh';
+  const expected = 'password=[REDACTED]';
+  const sha256 = createHash('sha256').update(expected).digest('hex');
+  await put('sample.txt', raw);
+  let offset: number | null = 0,
+    collected = '';
+  do {
+    const page = await call('deus_artifact_read', { path: 'sample.txt', offset, maxBytes: 12 });
+    const bytes = Buffer.byteLength(page.text);
+    assert.ok(bytes <= 12);
+    assert.equal(page.offset, offset);
+    assert.equal(page.size, Buffer.byteLength(expected));
+    assert.equal(page.sha256, sha256);
+    assert.equal(page.digestScope, 'complete-redacted-content');
+    if (page.nextOffset !== null) assert.equal(page.nextOffset, offset + bytes);
+    collected += page.text;
+    offset = page.nextOffset;
+  } while (offset !== null);
+  assert.equal(collected, expected);
+  assert.equal(createHash('sha256').update(collected).digest('hex'), sha256);
+
+  await put('forge/wiki/sample.md', '---\nslug: sample\n---\n' + raw);
+  let cursor: string | null = null;
+  collected = '';
+  do {
+    const page = await call('deus_dexter_wiki_read', {
+      workspace: root,
+      slug: 'sample',
+      section: 'body',
+      cursor,
+      limit: 12,
+    });
+    assert.ok(Buffer.byteLength(page.text) <= 12);
+    assert.equal(page.revision, sha256);
+    collected += page.text;
+    cursor = page.nextCursor;
+  } while (cursor !== null);
+  assert.equal(collected, expected);
 });

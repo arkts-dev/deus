@@ -33,8 +33,8 @@ The operator-owned launcher configures server-side PATH, Dexter/signing trust an
 
 - `deus_workspace_info`: canonical workspace and skills.
 - `deus_skill_read({name})`: integrity-checked original workflow.
-- `deus_artifact_list({path,offset?})`: 200 entries/page.
-- `deus_artifact_read({path,offset?,maxBytes?})`: UTF-8, ≤64 MiB/file; default 64,000/max 256,000 bytes/page. Redact before pagination; offsets/digest describe redacted content.
+- `deus_artifact_list({path,offset})`: 200 entries/page; initially offset 0.
+- `deus_artifact_read({path,offset,maxBytes})`: UTF-8, ≤64 MiB/file; normally offset 0/maxBytes 4096; max 256,000. Redacted offsets/digest.
 - `deus_artifact_write({path,content})`: create-only Markdown research/handoffs under `.deus/`; required front matter. Designs use design tools.
 
 Workspace arguments must match the canonical server root; paths are server-relative. Extra properties, traversal, links and special files are rejected. Generic artifacts exclude Forge, bus, Git, node_modules, `.env*` and Dexter configuration; dedicated readers retain their guards.

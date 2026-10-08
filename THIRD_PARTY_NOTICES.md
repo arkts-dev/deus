@@ -1,6 +1,6 @@
 # Third-party notices
 
-The packaged Deus extension uses the following npm dependencies. They are installed separately and retain their own licenses:
+Deus uses these npm dependencies, separately installed under their own licenses:
 
 - `@earendil-works/pi-coding-agent` 0.85.1 — MIT.
 - `pi-web-access` 0.29.0 — MIT.

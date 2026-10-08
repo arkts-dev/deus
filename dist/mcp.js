@@ -5,7 +5,7 @@ import { Check } from 'typebox/value';
 import { readFile, readdir, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { registerDexterTools } from './extension.js';
-import { registerDesignerTools } from './designer.js';
+import { designPath, registerDesignerTools } from './designer.js';
 import { registerBoardTools } from './board.js';
 import { artifactPath, registerFileTools, workspacePath } from './mcp-files.js';
 import { packageRoot, verifySkillIntegrity } from './resources.js';
@@ -99,8 +99,10 @@ export async function createDeusServer(workspace) {
                 if ('workspace' in args && args.workspace !== cwd)
                     throw new Error('workspace must equal the configured server workspace');
                 if (tool.name.startsWith('deus_design_')) {
-                    artifactPath(String(args.path));
-                    await workspacePath(cwd, String(args.path), true);
+                    const { rel } = designPath(cwd, String(args.path));
+                    artifactPath(rel);
+                    await workspacePath(cwd, rel, true);
+                    args.path = rel;
                 }
                 if ([
                     'deus_dexter_issues_live',

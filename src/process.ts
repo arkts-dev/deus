@@ -24,7 +24,10 @@ export const textResult = (text: string) => ({
   content: [{ type: 'text' as const, text }],
   details: {},
 });
-export const jsonResult = (value: unknown, space = 2) => textResult(redactedJson(value, space));
+export const jsonResult = (value: unknown, space = 0) => textResult(redactedJson(value, space));
+/** Reader text is already redacted before hashing/slicing; never transform that slice again. */
+export const pageResult = <T extends { text: string }>({ text, ...metadata }: T) =>
+  textResult(JSON.stringify({ ...JSON.parse(redactedJson(metadata)), text }));
 
 export interface ProcessResult {
   stdout: string;

@@ -157,7 +157,7 @@ test('the close tool enforces approval, trust and cancellation; reads remain ava
     const call = async (confirm: boolean, signal?: AbortSignal) => {
       const result = (await close.execute(
         'test',
-        { workspace: root, issue: 'ISSUE-0002', reason: 'NOISE', confirm },
+        { workspace: root, issue: 'ISSUE-0002', reason: 'NOISE', successor: null, confirm },
         signal,
         undefined,
         { cwd: root },
@@ -173,7 +173,11 @@ test('the close tool enforces approval, trust and cancellation; reads remain ava
     assert.equal(rejected.status, 'rejected');
     assert.deepEqual(rejected.reasons, ['Fixture signature rejected']);
     assert.equal(await readFile(path, 'utf8'), before);
-    assert.ok(await tools.get('deus_dexter_issues_live')!.execute('test', { workspace: root }));
+    assert.ok(
+      await tools
+        .get('deus_dexter_issues_live')!
+        .execute('test', { workspace: root, cursor: null, limit: 20 }),
+    );
     trusted = cancel = true;
     const cancelled = await call(true, controller.signal);
     assert.equal(cancelled.status, 'rejected');
@@ -250,17 +254,17 @@ test('the live board lists only non-terminal issues without bodies', async () =>
     const snapshot = tools.get('deus_dexter_issues_live')!;
     const result = (await snapshot.execute(
       'test',
-      { workspace: root },
+      { workspace: root, cursor: null, limit: 20 },
       undefined,
       undefined,
       {},
     )) as { content: { text: string }[] };
     const live = JSON.parse(result.content[0]!.text);
     assert.deepEqual(
-      live.issues.map((issue: { id: string }) => issue.id),
+      live.records.map((issue: { id: string }) => issue.id),
       ['ISSUE-0001', 'ISSUE-0003', 'ISSUE-0004'],
     );
-    assert.ok(live.issues.every((issue: object) => !('body' in issue) && !('file' in issue)));
+    assert.ok(live.records.every((issue: object) => !('body' in issue) && !('file' in issue)));
   } finally {
     await rm(root, { recursive: true, force: true });
   }

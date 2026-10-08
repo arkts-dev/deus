@@ -198,7 +198,6 @@ export class EventReader {
     )
       throw new Error('Invalid or duplicate event sequence');
     const events: Record<string, unknown>[] = [];
-    let bytes = 0;
     for (const { file, seq } of files.slice(0, limit)) {
       const metadata = document(await source(root, ['bus', file])).metadata;
       if (
@@ -221,15 +220,23 @@ export class EventReader {
           'worker',
           'host',
           'note',
-        ].map((k) => [k, metadata[k] ?? null]),
+        ]
+          .filter((k) => metadata[k] !== undefined && metadata[k] !== null)
+          .map((k) => [k, metadata[k]]),
       );
       const text = redactedJson(event);
       const size = Buffer.byteLength(text);
       if (size > MAX_PAGE_BYTES)
         throw new Error('Event summary exceeds 16 KiB; use ordinary read-only inspection');
-      if (bytes + size > MAX_PAGE_BYTES) break;
       events.push(JSON.parse(text));
-      bytes += size;
+      const continuation =
+        files.length > events.length ? this.cursor.encode({ identity, before: seq }) : null;
+      if (Buffer.byteLength(redactedJson({ events, nextCursor: continuation })) > 8192) {
+        events.pop();
+        if (!events.length)
+          throw new Error('Event summary exceeds 8 KiB; use ordinary read-only inspection');
+        break;
+      }
     }
     let nextCursor: string | null = null;
     if (events.length && events.length < files.length) {

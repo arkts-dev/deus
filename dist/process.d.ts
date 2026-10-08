@@ -15,6 +15,16 @@ export declare const jsonResult: (value: unknown, space?: number) => {
     }[];
     details: {};
 };
+/** Reader text is already redacted before hashing/slicing; never transform that slice again. */
+export declare const pageResult: <T extends {
+    text: string;
+}>({ text, ...metadata }: T) => {
+    content: {
+        type: "text";
+        text: string;
+    }[];
+    details: {};
+};
 export interface ProcessResult {
     stdout: string;
     stderr: string;

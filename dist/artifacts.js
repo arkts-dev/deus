@@ -29,7 +29,12 @@ export async function source(root, parts) {
     const data = await readFile(path);
     if (data.length > MAX_SOURCE_BYTES)
         throw new Error('Artifact grew beyond the reader size limit');
-    return data.toString('utf8');
+    try {
+        return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(data);
+    }
+    catch {
+        throw new Error('Artifact is not valid UTF-8');
+    }
 }
 export function document(text) {
     const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/.exec(text);

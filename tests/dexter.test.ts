@@ -59,6 +59,13 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
   );
   for (const run of operations(c, dir)) assert.equal((await run()).status, 'completed');
   await c.relinkIssue({ workspace: dir, issue: 'ISSUE-0001', parent: 'ISSUE-0004' });
+  await c.createIssue({
+    workspace: dir,
+    title: 'Standalone',
+    body: 'Body',
+    priority: 3,
+    dependencies: [],
+  });
   const expected = [
     ['submit', '--body=two words', '--', 'literal;$(touch nope)'],
     [
@@ -85,6 +92,7 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
     ],
     ['accept-architecture', 'ISSUE-0001', '--candidate', 'AC-000001', '--reason=reason'],
     ['relink-issue', 'ISSUE-0001', '--parent', 'ISSUE-0004'],
+    ['issue', '--title=Standalone', '--body=Body', '--priority', '3'],
   ].map(([command, ...args]) => [command, `--dir=${dir}`, ...args]);
   const argv = await readFile(join(dir, 'argv'), 'utf8');
   assert.deepEqual(
