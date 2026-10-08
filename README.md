@@ -60,6 +60,8 @@ export DEUS_DEXTER_TRUSTED_FINGERPRINTS=968479A1AFF927E37D1A566BB5690EEEBB952194
 
 GitHub's published web-flow key applies to GitHub-signed merges; independently verify other maintainers. Never use short IDs. Dexter/config services are unbundled.
 
+`deus_dexter_metrics({workspace,since,until,utcOffsetMinutes})`: ≤7 days/8 KiB; exclusive end, fixed offset (180 = +03:00), no DST. Daily runs: totals/exact observed-role breakdowns; workspace review activity separate. Run-start cohorts use collection-start outcome cutoff. `dayClosed` means calendar day ended; collection is nontransactional. Recorded duration/prompt samples; unsampled sums null. Invalid/unavailable sources error. No Git/MR delivery attribution, context, gate, CPU, liveness or acceptance claims.
+
 ### Public web research
 
 `deus_research_web({question,provider})`: bounded foreground research isolated from projects. "default" uses configuration; Exa `EXA_API_KEY`, SearXNG `DEUS_SEARXNG_URL`, Brave `BRAVE_API_KEY`, Tavily `TAVILY_API_KEY`. `DEUS_WEB_PROVIDER` selects explicitly; otherwise Exa precedes SearXNG. `fetch` inspects public URLs, not search discovery. Never send private text/credentials.

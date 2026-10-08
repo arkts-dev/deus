@@ -92,6 +92,7 @@ test('MCP exposes current typed tools and original skills with accurate annotati
     'run_read',
     'bots_live',
     'events_read',
+    'metrics',
   ])
     assert.equal(
       tools.find((tool) => tool.name === `deus_dexter_${suffix}`)!.annotations!.readOnlyHint,
@@ -101,6 +102,29 @@ test('MCP exposes current typed tools and original skills with accurate annotati
     tools.find((tool) => tool.name === 'deus_dexter_issue_close')!.annotations!.readOnlyHint,
     false,
   );
+  const metricsArgs = {
+    workspace: root,
+    since: '2026-01-01',
+    until: '2026-01-02',
+    utcOffsetMinutes: 180,
+  };
+  const unavailable = await client.callTool({
+    name: 'deus_dexter_metrics',
+    arguments: metricsArgs,
+  });
+  assert.equal(unavailable.isError, true);
+  assert.ok(!JSON.stringify(unavailable).includes(root));
+  for (const path of ['forge/runs', 'forge/reviews'])
+    await mkdir(join(root, path), { recursive: true });
+  const metrics = await call('deus_dexter_metrics', metricsArgs);
+  assert.equal(metrics.days[0].runs.total.starts, 0);
+  assert.deepEqual(metrics.days[0].runs.byRole, {});
+  assert.deepEqual(metrics.days[0].workspaceActivity.reviewVerdicts, {});
+  await reject('deus_dexter_metrics', { ...metricsArgs, role: 'all' });
+  assert.equal(metrics.utcOffsetMinutes, 180);
+  assert.ok(!JSON.stringify(metrics).includes(root));
+  assert.ok(!JSON.stringify(metrics).includes('forge/'));
+  await reject('deus_dexter_metrics', { ...metricsArgs, workspace: '/client/not-server' });
   const info = await call('deus_workspace_info');
   assert.equal(info.workspace, root);
   assert.equal(info.skills.length, 6);

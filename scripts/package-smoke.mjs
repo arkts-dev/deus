@@ -126,6 +126,7 @@ try {
     'deus_dexter_issue_reprioritize',
     'deus_dexter_issues_live',
     'deus_dexter_issues_plan',
+    'deus_dexter_metrics',
     'deus_dexter_mr_read',
     'deus_dexter_probe',
     'deus_dexter_run_read',
@@ -214,6 +215,16 @@ tools/gate-manifest.sh
     const shippedDesigner = await readFile(join(packageDir, 'skills/designer/SKILL.md'), 'utf8');
     assert.ok(shippedDesigner.includes('user confirmation before writing'));
     assert.ok(shippedDesigner.includes('designer does not implement or prototype'));
+    for (const path of ['forge/runs', 'forge/reviews'])
+      await mkdir(join(root, path), { recursive: true });
+    const metrics = await invoke('deus_dexter_metrics', {
+      workspace: root,
+      since: '2026-01-01',
+      until: '2026-01-02',
+      utcOffsetMinutes: 180,
+    });
+    assert.equal(metrics.days[0].runs.total.starts, 0);
+    assert.deepEqual(metrics.days[0].runs.byRole, {});
     const probe = await invoke('deus_dexter_probe', { diagnostics: false });
     assert.equal(probe.profile, 'unknown');
     assert.ok(probe.reasons.length > 0);

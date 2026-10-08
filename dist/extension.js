@@ -6,10 +6,12 @@ import { DexterPlugin } from './dexter.js';
 import { ArtifactReader, SECTIONS } from './artifacts.js';
 import { boundedText } from './receipt.js';
 import { botsLive, EventReader } from './operations.js';
+import { registerMetricsTool } from './metrics.js';
 import { jsonResult as output, pageResult } from './process.js';
 import { packageRoot } from './resources.js';
 import { researchWeb, webConfigFromEnv } from './research.js';
 export function registerDexterTools(pi) {
+    registerMetricsTool(pi);
     const clients = new Map();
     const dexter = (cwd) => {
         const executable = process.env.DEXTER_BIN || 'dexter';
