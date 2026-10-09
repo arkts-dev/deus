@@ -15,6 +15,13 @@ export function redact(value) {
 export function redactedJson(value, space) {
     return JSON.stringify(value, (_key, item) => (typeof item === 'string' ? redact(item) : item), space);
 }
+export const textResult = (text) => ({
+    content: [{ type: 'text', text }],
+    details: {},
+});
+export const jsonResult = (value, space = 0) => textResult(redactedJson(value, space));
+/** Reader text is already redacted before hashing/slicing; never transform that slice again. */
+export const pageResult = ({ text, ...metadata }) => textResult(JSON.stringify({ ...JSON.parse(redactedJson(metadata)), text }));
 export function runProcess(executable, argv, options) {
     if (argv.some((a) => a.includes('\0')) || executable.includes('\0'))
         throw new Error('Invalid process argument');

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, readFile, writeFile, chmod, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, rm } from 'node:fs/promises';
+import { fixture, environment, trust, program as writeProgram, waitFile } from './fixture.js';
 import { join } from 'node:path';
-import { DexterPlugin, MUTATION_COMMANDS, type ProbeReport } from '../src/dexter.js';
+import { DexterPlugin } from '../src/dexter.js';
 
 const operations = (c: DexterPlugin, workspace: string) => [
   () => c.submit({ workspace, title: 'literal;$(touch nope)', body: 'two words' }),
@@ -35,11 +35,7 @@ const operations = (c: DexterPlugin, workspace: string) => [
     }),
 ];
 test('unknown signature blocks every typed mutation and generic execution is absent', async (t) => {
-  const prior = process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
-  delete process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
-  t.after(() => {
-    if (prior !== undefined) process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS = prior;
-  });
+  environment(t, 'DEUS_DEXTER_TRUSTED_FINGERPRINTS');
   const c = new DexterPlugin(process.execPath);
   const probe = await c.probe();
   assert.equal(probe.profile, 'unknown');
@@ -53,27 +49,23 @@ test('unknown signature blocks every typed mutation and generic execution is abs
   assert.equal('exec' in c, false);
 });
 test('typed argv, validation, bounded receipts and uncertain outcomes without retries', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'deus-typed-'));
-  t.after(() => rm(dir, { recursive: true, force: true }));
+  const { root: dir } = await fixture(t);
   const executable = join(dir, 'fake.mjs');
-  const program = async (body: string) => {
-    await writeFile(executable, `#!${process.execPath}\n${body}`);
-    await chmod(executable, 0o755);
-  };
+  const program = (body: string) => writeProgram(executable, body);
   const c = new DexterPlugin(executable, dir);
-  c.probe = async (): Promise<ProbeReport> => ({
-    executable,
-    profile: 'dexter-signed',
-    baselineRevision: 'f'.repeat(40),
-    supportedCommands: MUTATION_COMMANDS,
-    diagnostics: {},
-    reasons: [],
-  });
+  trust(t, c);
   await program(
     "import { appendFileSync } from 'node:fs'; appendFileSync('argv', JSON.stringify(process.argv.slice(2))+'\\n'); console.log('created ISSUE-0123 (task): example');",
   );
   for (const run of operations(c, dir)) assert.equal((await run()).status, 'completed');
   await c.relinkIssue({ workspace: dir, issue: 'ISSUE-0001', parent: 'ISSUE-0004' });
+  await c.createIssue({
+    workspace: dir,
+    title: 'Standalone',
+    body: 'Body',
+    priority: 3,
+    dependencies: [],
+  });
   const expected = [
     ['submit', '--body=two words', '--', 'literal;$(touch nope)'],
     [
@@ -100,6 +92,7 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
     ],
     ['accept-architecture', 'ISSUE-0001', '--candidate', 'AC-000001', '--reason=reason'],
     ['relink-issue', 'ISSUE-0001', '--parent', 'ISSUE-0004'],
+    ['issue', '--title=Standalone', '--body=Body', '--priority', '3'],
   ].map(([command, ...args]) => [command, `--dir=${dir}`, ...args]);
   const argv = await readFile(join(dir, 'argv'), 'utf8');
   assert.deepEqual(
@@ -147,15 +140,7 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
   );
   const abort = new AbortController();
   const pending = c.nudgeIssue({ workspace: dir, issue: 'ISSUE-0001' }, abort.signal);
-  for (let i = 0; i < 100; i++) {
-    try {
-      await readFile(join(dir, 'started'));
-      break;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-  }
-  assert.equal(await readFile(join(dir, 'started'), 'utf8'), 'yes');
+  assert.equal(await waitFile(join(dir, 'started')), 'yes');
   abort.abort();
   const cancelled = await pending;
   assert.equal(cancelled.status, 'outcome_unknown');

@@ -56,6 +56,7 @@ async function findRepoRoot(startDir: string): Promise<string | undefined> {
 export async function verifyCommitSignature(
   executable: string,
   cwd: string,
+  signal?: AbortSignal,
 ): Promise<SignatureVerification> {
   const diagnostics: Record<string, ProcessResult> = {};
   const trusted = trustedFingerprints();
@@ -72,7 +73,7 @@ export async function verifyCommitSignature(
   const repo = await findRepoRoot(dirname(exePath));
   if (!repo) return fail(`no git repository found above ${dirname(exePath)}`);
 
-  const revParse = await runProcess('git', ['-C', repo, 'rev-parse', 'HEAD'], { cwd });
+  const revParse = await runProcess('git', ['-C', repo, 'rev-parse', 'HEAD'], { cwd, signal });
   diagnostics['git rev-parse HEAD'] = revParse;
   if (!succeeded(revParse)) return fail('git rev-parse HEAD failed');
   const commit = revParse.stdout.trim();
@@ -84,12 +85,13 @@ export async function verifyCommitSignature(
       diagnostics[`gpg --recv-keys ${fingerprint.slice(-16)}`] = await runProcess(
         'gpg',
         ['--batch', '--keyserver', KEYSERVER, '--recv-keys', fingerprint],
-        { cwd, env },
+        { cwd, env, signal },
       );
     }
     const verify = await runProcess('git', ['-C', repo, 'verify-commit', '--raw', commit], {
       cwd,
       env,
+      signal,
     });
     diagnostics['git verify-commit'] = verify;
     if (!succeeded(verify)) return fail('git verify-commit failed (signature not valid)');

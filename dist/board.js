@@ -1,9 +1,12 @@
+/** Product control: typed board snapshot, PRODUCT classification, and the one approval-gated close edit. */
+import { readOnly } from './tool-registry.js';
 import { Type } from 'typebox';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
-import { redactedJson } from './process.js';
+import { jsonResult as output } from './process.js';
 import { mutationReceipt } from './receipt.js';
 import { DexterPlugin } from './dexter.js';
+import { RecordPager } from './cursor.js';
 import { banned, field, frontmatter, list, terms } from './governance.js';
 const TERMINAL = new Set(['closed', 'rejected']);
 const READY = new Set(['open', 'ready']);
@@ -224,32 +227,52 @@ export async function applyClose(workspace, board, issueId, reason, successor) {
     await writeFile(path, content, 'utf8');
     return { issue: issueId, changed: true, reason };
 }
-const output = (value) => ({
-    content: [{ type: 'text', text: redactedJson(value, 2) }],
-    details: {},
-});
-export default function board(pi) {
+export function registerBoardTools(pi) {
     const workspace = Type.String({ description: 'Absolute Dexter workspace path' });
+    const pagination = {
+        workspace,
+        cursor: Type.Union([Type.String({ maxLength: 2048 }), Type.Null()], {
+            description: 'null starts a fresh snapshot.',
+        }),
+        limit: Type.Integer({
+            minimum: 1,
+            maximum: 100,
+            description: 'Normally 20 records, maximum 8 KiB/page.',
+        }),
+    };
+    const live = new RecordPager(), plans = new RecordPager();
     pi.registerTool({
         name: 'deus_dexter_issues_live',
+        annotations: readOnly,
         label: 'Live board',
-        description: 'Parse the forge into a typed board: the dependency frontier, claims, and the dispatchable set. Lists only non-terminal issues without bodies; use issue_read for individual records.',
-        parameters: Type.Object({ workspace }),
+        description: 'Page non-terminal issues with dependency readiness and claims; no bodies or historical candidate inventory. Snapshot cursors reject changes. Use issue_read for contracts.',
+        parameters: Type.Object(pagination),
         async execute(_id, p) {
-            const { issues, ...board } = await loadBoard(p.workspace);
-            return output({
-                ...board,
-                issues: issues.filter((issue) => !terminal(issue)).map(({ body, file, ...rest }) => rest),
-            });
+            const board = await loadBoard(p.workspace);
+            return output(live.page(p.workspace, board.issues
+                .filter((issue) => !terminal(issue))
+                .map(({ body, file, ...issue }) => ({
+                ...issue,
+                ready: board.ready.includes(issue.id),
+                unclaimed: board.unclaimed.includes(issue.id),
+                blockedBy: issue.deps.filter((dep) => !board.issues.some((i) => i.id === dep && i.status === 'closed')),
+            })), p.cursor, p.limit));
         },
     });
     pi.registerTool({
         name: 'deus_dexter_issues_plan',
+        annotations: readOnly,
         label: 'Plan board saturation',
-        description: 'Classify non-terminal issues against the live root objective and propose scheduling actions and guarded closures, not implementation plans. Never mutates.',
-        parameters: Type.Object({ workspace }),
+        description: 'Page PRODUCT-first classifications, scheduling proposals and guarded closures. Never mutates; statuses and proposals are not acceptance. Snapshot cursors reject changes.',
+        parameters: Type.Object(pagination),
         async execute(_id, p) {
-            return output(planBoard(await loadBoard(p.workspace)));
+            const plan = planBoard(await loadBoard(p.workspace));
+            return output(plans.page(p.workspace, plan.classifications.map((entry) => ({
+                ...entry,
+                actions: plan.actions.filter((action) => action.parameters.issue === entry.id),
+                closure: plan.closes.find((close) => close.issue === entry.id) ?? null,
+                reports: plan.reports.filter((report) => report.includes(entry.id)),
+            })), p.cursor, p.limit));
         },
     });
     pi.registerTool({
@@ -260,7 +283,9 @@ export default function board(pi) {
             workspace,
             issue: Type.String(),
             reason: Type.Union([Type.Literal('NOISE'), Type.Literal('DEAD'), Type.Literal('SUPERSEDED')]),
-            successor: Type.Optional(Type.String({ description: 'Named non-terminal successor when closing PRODUCT work' })),
+            successor: Type.Union([Type.String({ pattern: '^ISSUE-\\d+$' }), Type.Null()], {
+                description: 'Named non-terminal successor when closing PRODUCT work; null means none.',
+            }),
             confirm: Type.Boolean(),
         }),
         async execute(_id, p, signal, _update, ctx) {
@@ -275,7 +300,8 @@ export default function board(pi) {
             if (probe.profile !== 'dexter-signed')
                 return output(mutationReceipt('rejected', { ...receipt, reasons: probe.reasons }));
             const snapshot = await loadBoard(p.workspace);
-            const errors = closeErrors(snapshot, p.issue, p.reason, p.successor);
+            const successor = p.successor ?? undefined;
+            const errors = closeErrors(snapshot, p.issue, p.reason, successor);
             if (signal?.aborted)
                 return output(mutationReceipt('rejected', {
                     ...receipt,
@@ -285,7 +311,7 @@ export default function board(pi) {
             if (errors.length)
                 return output(mutationReceipt('rejected', { ...receipt, reasons: errors }));
             try {
-                const result = await applyClose(snapshot.workspace, snapshot, p.issue, p.reason, p.successor);
+                const result = await applyClose(snapshot.workspace, snapshot, p.issue, p.reason, successor);
                 return output(mutationReceipt('completed', { ...receipt, changed: result.changed }));
             }
             catch {
@@ -298,4 +324,7 @@ export default function board(pi) {
             }
         },
     });
+}
+export default function board(pi) {
+    registerBoardTools(pi);
 }

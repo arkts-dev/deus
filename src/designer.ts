@@ -1,9 +1,10 @@
 /** Designer: mechanical invariant checks and one-shot writing for design documents. */
+import { readOnly, type ToolRegistrar } from './tool-registry.js';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
-import { redactedJson } from './process.js';
+import { jsonResult as output } from './process.js';
 import { contradictions, duplicates, field, frontmatter, list, words } from './governance.js';
 
 export const DESIGN_CAP = 15_000;
@@ -70,19 +71,18 @@ export async function designWrite(cwd: string, requested: string, content: strin
   const check = designCheck(cwd, requested, content);
   if (!check.ok) return { ...check, status: 'rejected' as const };
   await mkdir(dirname(absolute), { recursive: true });
-  await writeFile(absolute, content.endsWith('\n') ? content : `${content}\n`, 'utf8');
+  await writeFile(absolute, content.endsWith('\n') ? content : `${content}\n`, {
+    encoding: 'utf8',
+    flag: 'wx',
+  });
   return { ...check, status: 'written' as const };
 }
 
 const parameters = () => Type.Object({ path: Type.String(), content: Type.String() });
-const output = (value: unknown) => ({
-  content: [{ type: 'text' as const, text: redactedJson(value, 2) }],
-  details: {},
-});
-
-export default function designer(pi: ExtensionAPI) {
+export function registerDesignerTools(pi: ToolRegistrar) {
   pi.registerTool({
     name: 'deus_design_check',
+    annotations: readOnly,
     label: 'Check design document',
     description:
       'Check design structure: front matter, word cap, and duplicate headings; warn about possible contradictions. Does not verify evidence or user agreement. Writes nothing.',
@@ -101,4 +101,8 @@ export default function designer(pi: ExtensionAPI) {
       return output(await designWrite(ctx.cwd, p.path, p.content));
     },
   });
+}
+
+export default function designer(pi: ExtensionAPI) {
+  registerDesignerTools(pi);
 }

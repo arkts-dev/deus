@@ -16,6 +16,10 @@ export interface MutationReceipt {
     reasons: string[];
 }
 export declare function boundedText(text: string, bytes: number): string;
+export declare function bytePage(content: string, offset: number, limit: number): {
+    text: string;
+    nextOffset: number | null;
+};
 export declare function mutationReceipt(status: MutationStatus, p?: Partial<Omit<MutationReceipt, 'status' | 'diagnostics'>> & {
     stdout?: string;
     stderr?: string;

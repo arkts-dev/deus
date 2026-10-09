@@ -1,6 +1,30 @@
 export declare const digest: (value: string | Buffer) => string;
 export declare function redact(value: string): string;
 export declare function redactedJson(value: unknown, space?: number): string;
+export declare const textResult: (text: string) => {
+    content: {
+        type: "text";
+        text: string;
+    }[];
+    details: {};
+};
+export declare const jsonResult: (value: unknown, space?: number) => {
+    content: {
+        type: "text";
+        text: string;
+    }[];
+    details: {};
+};
+/** Reader text is already redacted before hashing/slicing; never transform that slice again. */
+export declare const pageResult: <T extends {
+    text: string;
+}>({ text, ...metadata }: T) => {
+    content: {
+        type: "text";
+        text: string;
+    }[];
+    details: {};
+};
 export interface ProcessResult {
     stdout: string;
     stderr: string;

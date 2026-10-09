@@ -123,3 +123,28 @@ test('newest-first bounded event pages survive appends and reject invalid cursor
   await symlink('/etc/passwd', join(root, 'bus/000008-run.started.md'));
   await assert.rejects(reader.read(p), /escapes/);
 });
+
+test('event wire pages omit absent fields, stay bounded, and continue without dropping events', async (t) => {
+  const { root, put } = await fixture(t);
+  for (let seq = 1; seq <= 30; seq++)
+    await put(
+      `bus/${String(seq).padStart(6, '0')}-run.started.md`,
+      `---\nseq: ${seq}\nts: 2026-10-07T07:00:00Z\ntype: run.started\nnote: ${'x'.repeat(700)}\n---\n`,
+    );
+  const reader = new EventReader();
+  let cursor: string | null = null;
+  const seen: unknown[] = [];
+  do {
+    const page = await reader.read({ workspace: root, cursor, limit: 100 });
+    assert.ok(Buffer.byteLength(JSON.stringify(page)) <= 8192);
+    for (const event of page.events) {
+      assert.equal('host' in event, false);
+      seen.push(event.seq);
+    }
+    cursor = page.nextCursor;
+  } while (cursor);
+  assert.deepEqual(
+    seen,
+    Array.from({ length: 30 }, (_, i) => 30 - i),
+  );
+});
