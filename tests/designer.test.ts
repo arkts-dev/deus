@@ -43,12 +43,12 @@ An invalid program reports a diagnostic.
 docs/spec.md:1
 `;
 
-test('designer paths stay workspace-relative and out of fs/ and forge/', () => {
+test('designer paths stay workspace-relative and out of private runtime paths', () => {
   assert.deepEqual(designPath('/w', 'design/a.md'), {
     absolute: '/w/design/a.md',
     rel: 'design/a.md',
   });
-  for (const path of ['/etc/x', '../x', 'fs/x.md', 'forge/x.md'])
+  for (const path of ['/etc/x', '../x', '.git/x.md', '.dexter-local/x.md'])
     assert.throws(() => designPath('/w', path));
 });
 
@@ -97,7 +97,7 @@ test('writeDesign writes once and refuses to amend', async () => {
     assert.equal((await designWrite(root, 'design/a.md', VALID)).status, 'written');
     assert.match(await readFile(join(root, 'design/a.md'), 'utf8'), /kind: design/);
     await assert.rejects(designWrite(root, 'design/a.md', VALID), /never amends/);
-    await assert.rejects(designWrite(root, 'fs/a.md', VALID), /fs\//);
+    await assert.rejects(designWrite(root, '.git/a.md', VALID), /private/);
     assert.equal((await designWrite(root, 'design/b.md', '# x')).status, 'rejected');
   } finally {
     await rm(root, { recursive: true, force: true });

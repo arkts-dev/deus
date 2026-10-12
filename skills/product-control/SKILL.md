@@ -1,10 +1,14 @@
 ---
 name: product-control
-description: Keep a Dexter workspace saturated with PRODUCT work without rewriting the forge.
+description: Inspect product scope and independently accept GitHub engineering outcomes.
 ---
 
 # Product control
 
-An issue is PRODUCT if finishing it changes observable behavior: a specification rule, a runtime or backend behavior, a conformance test that fails now and passes later, or an interface another PRODUCT issue consumes. Everything else is NOISE: counters, percentages, coverage, readiness verdicts, evidence, gates, audits, provenance, release bureaucracy. DEAD means canonical state already proves it or a named successor owns it. Never close PRODUCT; saturation is a scheduling measurement, never product completion.
+An issue is PRODUCT when completion changes observable behavior or a required interface. NOISE has no such effect. DEAD means current evidence proves completion or a named successor owns the scope. Preserve uncertain work as PRODUCT. Scheduling activity does not prove product completion.
 
-Call `deus_dexter_issues_live` for the typed graph, frontier, claims, and blockers, then call `deus_dexter_issues_plan`, which classifies against the live root objective and returns objective-term evidence for every PRODUCT classification. The detector's hits are evidence, not the definition: NOISE means finishing the issue changes no observable behavior, and you must confirm that against the definition before proposing a close. Anything not proven noise is retained as PRODUCT. Mutate existing work only, one typed operation at a time: `deus_dexter_issue_nudge`, `deus_dexter_issue_relink` removing dependencies, or `deus_dexter_issue_reprioritize`. No free-form directive or reopen API is exposed. Never add a dependency; it lengthens the critical path and belongs to the product owner. Never create work with `deus_dexter_submit` or `deus_dexter_issue_create`, and never call `deus_dexter_architecture_accept` autonomously; those change product scope or override review and require an explicit user instruction. Close NOISE only, and only when the plan proves a leaf with no claim, workdir, merge request, or open child, by calling `deus_dexter_issue_close` with the exact reason and `confirm: true`; that is the only raw edit, and every other raw-edit case is reported. Never run the `run` drain; the operator issues it. Keep counters out of durable artifacts.
+Use `deus_github_read` to inspect objective requirements, engineering decisions, dependencies, exact-revision reviews, and pull requests. Use immutable private archive references for execution evidence. Do not rewrite engineering records or close engineering issues. Dexter owns engineering closure and its verification gates.
+
+Do not create new work, expand scope, or override review without explicit user authorization. Report unnecessary work and dependency concerns with evidence. GitHub questions use immutable input keys and authorized actors. Product acceptance remains a separate decision after actual source and tests satisfy the agreed criteria. Record the decision through `deus_github_product_accept` with the exact revision and independent evidence.
+
+Never retry uncertain mutations automatically. Inspect GitHub state before another decision. Keep counters and private execution logs out of durable product artifacts.

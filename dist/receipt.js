@@ -24,7 +24,6 @@ export function mutationReceipt(status, p = {}) {
     const stderr = redact(p.stderr ?? '');
     return {
         status,
-        profile: p.profile,
         issue: p.issue,
         changed: p.changed,
         exitCode: p.exitCode ?? null,

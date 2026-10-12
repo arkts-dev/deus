@@ -26,8 +26,11 @@ export function designPath(cwd, requested) {
     const absolute = resolve(cwd, wanted);
     const rel = relative(cwd, absolute);
     const head = rel.split(sep)[0];
-    if (!rel || rel.startsWith('..') || isAbsolute(rel) || head === 'fs' || head === 'forge')
-        throw new Error('design path must stay inside the workspace outside fs/ and forge/');
+    if (!rel ||
+        rel.startsWith('..') ||
+        isAbsolute(rel) ||
+        ['.git', '.dexter-local', 'node_modules'].includes(head ?? ''))
+        throw new Error('design path must stay inside the workspace outside private runtime paths');
     return { absolute, rel: rel.split(sep).join('/') };
 }
 export function designCheck(cwd, requested, content) {
@@ -95,7 +98,7 @@ export function registerDesignerTools(pi) {
     pi.registerTool({
         name: 'deus_design_write',
         label: 'Write design document',
-        description: 'Validate and write one new design document to a user-named workspace-relative path. Refuses existing, absolute, fs/, and forge/ paths.',
+        description: 'Validate and write one new design document to a user-named workspace-relative path. Refuses existing, absolute, and private runtime paths.',
         parameters: parameters(),
         async execute(_id, p, _signal, _update, ctx) {
             return output(await designWrite(ctx.cwd, p.path, p.content));

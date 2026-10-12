@@ -5,3 +5,6 @@ coverage/
 
 # Generated development evidence and intermediates belong in the external artifact cache.
 artifacts/
+
+.deus-local/
+/.deus-*.log
