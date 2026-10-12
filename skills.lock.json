@@ -5,17 +5,17 @@
     {
       "output": "skills/dexter-control/SKILL.md",
       "origin": "deus-original",
-      "sha256": "90af07660d787c01acf35e3faa7a8d6e79057d0d89acd1aabb323345379a3001"
+      "sha256": "83cb8035bb932a601b9dba5be7f386bdce8987a819fe4aade897e365bfb172ff"
     },
     {
       "output": "skills/designer/SKILL.md",
       "origin": "deus-original",
-      "sha256": "848f0ba531c4313a70e8277dee98ad3ce12947e6952ba3f5d4e360969b6d9fd5"
+      "sha256": "df23e0ddff2b1949138f4a46ad0e88d6273d866a40d5bd86b1ab477bf47100d6"
     },
     {
       "output": "skills/product-control/SKILL.md",
       "origin": "deus-original",
-      "sha256": "fe840ff47fcbdaaec2f1828e47db3265fc5538b4a4bf64c00168a87580c689a6"
+      "sha256": "40349219f85f953bcf116ff86a5cba7a865d887b03523cfdd4f89d129f8dcee0"
     },
     {
       "output": "skills/web-research/SKILL.md",

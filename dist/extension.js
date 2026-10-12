@@ -2,149 +2,103 @@ import { readOnly } from './tool-registry.js';
 import { Type } from 'typebox';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { DexterPlugin } from './dexter.js';
-import { ArtifactReader, SECTIONS } from './artifacts.js';
-import { boundedText } from './receipt.js';
-import { botsLive, EventReader } from './operations.js';
-import { registerMetricsTool } from './metrics.js';
+import { GitHubPlugin } from './github.js';
 import { jsonResult as output, pageResult } from './process.js';
 import { packageRoot } from './resources.js';
 import { researchWeb, webConfigFromEnv } from './research.js';
-export function registerDexterTools(pi) {
-    registerMetricsTool(pi);
+export function registerGitHubTools(pi) {
     const clients = new Map();
-    const dexter = (cwd) => {
-        const executable = process.env.DEXTER_BIN || 'dexter';
-        const key = JSON.stringify([executable, cwd]);
-        if (!clients.has(key))
-            clients.set(key, new DexterPlugin(executable, cwd));
-        return clients.get(key);
+    const client = (cwd) => {
+        let item = clients.get(cwd);
+        if (!item) {
+            item = new GitHubPlugin(cwd);
+            clients.set(cwd, item);
+        }
+        return item;
     };
-    function mutation(name, description, parameters, execute) {
-        pi.registerTool({
-            name: `deus_dexter_${name}`,
-            label: name.replaceAll('_', ' '),
-            description: `${description} Verified CLI; compact mutation receipt; never retries.`,
-            parameters,
-            async execute(_id, p, signal, _update, ctx) {
-                return output(await execute(dexter(ctx.cwd), p, signal));
-            },
-        });
-    }
+    const repository = Type.String({
+        pattern: '^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$',
+    }), issue = Type.Integer({ minimum: 1 }), cursor = Type.Union([Type.String({ maxLength: 2048 }), Type.Null()]), limit = Type.Integer({ minimum: 4, maximum: 16384 });
     pi.registerTool({
-        name: 'deus_dexter_probe',
-        annotations: readOnly,
-        label: 'Probe Dexter',
-        description: 'Verify Dexter commit signature. Normally diagnostics=false returns trust evidence only; true adds bounded process diagnostics. Unknown profile blocks mutation.',
-        parameters: Type.Object({ diagnostics: Type.Boolean() }),
-        async execute(_id, p, signal, _update, ctx) {
-            const { diagnostics, ...report } = await dexter(ctx.cwd).probe(signal);
-            return output(p.diagnostics
-                ? {
-                    ...report,
-                    diagnostics: Object.fromEntries(Object.entries(diagnostics).map(([name, result]) => [
-                        name,
-                        {
-                            ...result,
-                            stdout: boundedText(result.stdout, 512),
-                            stderr: boundedText(result.stderr, 512),
-                            truncated: result.truncated ||
-                                Buffer.byteLength(result.stdout) > 512 ||
-                                Buffer.byteLength(result.stderr) > 512,
-                        },
-                    ])),
-                }
-                : report);
-        },
-    });
-    const workspace = Type.String({ description: 'Absolute Dexter workspace path' });
-    const issue = Type.String({ pattern: '^ISSUE-\\d+$' });
-    const priority = Type.Integer({
-        minimum: 1,
-        maximum: 4,
-        description: '1 highest, 4 lowest; use 3 for normal priority.',
-    });
-    const cursor = Type.Union([Type.String({ maxLength: 2048 }), Type.Null()], {
-        description: 'null starts the first page.',
-    });
-    const submission = { workspace, title: Type.String({ minLength: 1 }), body: Type.String() };
-    mutation('submit', 'Submit an objective through the verified CLI.', Type.Object(submission), (c, p, s) => c.submit(p, s));
-    mutation('issue_create', 'Create a standalone task or a child of a tracking epic through the verified CLI.', Type.Object({
-        ...submission,
-        parent: Type.Union([issue, Type.Null()], {
-            description: 'null creates a standalone task; an issue ID selects a tracking epic.',
-        }),
-        dependencies: Type.Array(issue, { description: 'Use [] for no dependencies.' }),
-        priority,
-    }), (c, p, s) => c.createIssue({ ...p, parent: p.parent ?? undefined }, s));
-    mutation('issue_nudge', 'Restart a blocked issue from valid state.', Type.Object({ workspace, issue }), (c, p, s) => c.nudgeIssue(p, s));
-    mutation('issue_reprioritize', 'Set priority (1 highest, 4 lowest).', Type.Object({ workspace, issue, priority }), (c, p, s) => c.reprioritizeIssue(p, s));
-    mutation('issue_relink', 'Change parent/dependencies; "unchanged" preserves the parent, null clears it.', Type.Object({
-        workspace,
-        issue,
-        parent: Type.Union([issue, Type.Null(), Type.Literal('unchanged')], {
-            description: '"unchanged" preserves the parent; null clears it; an issue ID replaces it.',
-        }),
-        addDependencies: Type.Array(issue, { description: 'Use [] for no additions.' }),
-        removeDependencies: Type.Array(issue, { description: 'Use [] for no removals.' }),
-    }), (c, p, s) => c.relinkIssue({ ...p, parent: p.parent === 'unchanged' ? undefined : p.parent }, s));
-    mutation('architecture_accept', 'Accept and promote a rejected architecture candidate.', Type.Object({
-        workspace,
-        issue,
-        candidate: Type.String({ pattern: '^AC-\\d+$' }),
-        reason: Type.String({ minLength: 1 }),
-    }), (c, p, s) => c.acceptArchitecture(p, s));
-    pi.registerTool({
-        name: 'deus_dexter_bots_live',
-        annotations: readOnly,
-        label: 'Live bot ownership',
-        description: 'Read working bots (including stale owners), issue/MR/run targets and correlated claims. Local PID or remote heartbeat liveness; cooldown is a persisted-config policy estimate, not observed worker configuration. Read-only, no CLI.',
-        parameters: Type.Object({ workspace }),
-        async execute(_id, p) {
-            return output(await botsLive(p.workspace));
-        },
-    });
-    const events = new EventReader();
-    pi.registerTool({
-        name: 'deus_dexter_events_read',
-        annotations: readOnly,
-        label: 'Read recent events',
-        description: 'Read local bus summaries newest first, then older pages using a path-free cursor. Normally 20, maximum 100 events and 8 KiB response bytes per page; no bodies. Appends do not disrupt continuation; cursors expire on reload. Read-only, no CLI.',
+        name: 'deus_github_submit',
+        label: 'Submit engineering contract',
+        description: 'Create one GitHub objective or task with explicit intake labels. Existing gh authentication; no automatic retry.',
         parameters: Type.Object({
-            workspace,
-            cursor,
-            limit: Type.Integer({ minimum: 1, maximum: 100 }),
+            repository,
+            kind: Type.Union([Type.Literal('objective'), Type.Literal('task')]),
+            title: Type.String({ minLength: 1 }),
+            body: Type.String({ minLength: 1 }),
         }),
-        async execute(_id, p) {
-            return output(await events.read(p));
+        async execute(_id, p, signal, _update, ctx) {
+            return output(await client(ctx.cwd).submit(p, signal));
         },
     });
-    const reader = new ArtifactReader();
-    for (const kind of ['issue', 'mr', 'wiki', 'run']) {
-        const idField = kind === 'wiki' ? 'slug' : kind;
-        pi.registerTool({
-            name: `deus_dexter_${kind}_read`,
-            annotations: readOnly,
-            label: `Read ${kind}`,
-            description: `Read one local ${kind} section without CLI execution. Default: ${kind === 'run' ? 'metadata' : 'summary (metadata/body)'}, not history. limit: UTF-8 bytes, normally 2048, max 16384. Cursors expire on reload and reject changed content. Run transcript is stdout, not the Pi session dump.`,
-            parameters: Type.Object({
-                workspace,
-                [idField]: Type.String(),
-                section: Type.Union(SECTIONS[kind].map((section) => Type.Literal(section))),
-                cursor,
-                limit: Type.Integer({ minimum: 4, maximum: 16384 }),
-            }),
-            async execute(_id, p) {
-                return pageResult(await reader.read(kind, {
-                    workspace: p.workspace,
-                    id: p[idField],
-                    section: p.section,
-                    cursor: p.cursor,
-                    limit: p.limit,
-                }));
-            },
-        });
-    }
+    pi.registerTool({
+        name: 'deus_github_answer',
+        label: 'Answer engineering decision',
+        description: 'Post an immutable input-bound answer as the authenticated GitHub actor. Dexter separately checks authorized actors.',
+        parameters: Type.Object({
+            repository,
+            issue,
+            inputKey: Type.String({ pattern: '^[0-9a-f]{64}$' }),
+            decisionKey: Type.String({ pattern: '^[a-zA-Z][a-zA-Z0-9_-]{0,79}$' }),
+            answer: Type.String({ minLength: 1 }),
+        }),
+        async execute(_id, p, signal, _update, ctx) {
+            return output(await client(ctx.cwd).answer(p, signal));
+        },
+    });
+    pi.registerTool({
+        name: 'deus_github_product_accept',
+        label: 'Record product acceptance',
+        description: 'Record a separate product decision after exact-revision engineering closure. Requires independent product evidence.',
+        parameters: Type.Object({
+            repository,
+            issue,
+            revision: Type.String({ pattern: '^[0-9a-f]{40}$' }),
+            evidence: Type.String({ minLength: 1 }),
+            decision: Type.Union([Type.Literal('accepted'), Type.Literal('rejected')]),
+        }),
+        async execute(_id, p, signal, _update, ctx) {
+            return output(await client(ctx.cwd).accept(p, signal));
+        },
+    });
+    pi.registerTool({
+        name: 'deus_github_read',
+        annotations: readOnly,
+        label: 'Read engineering record',
+        description: 'Read GitHub issue, review comments, or pull request with bounded redacted continuation.',
+        parameters: Type.Object({
+            repository,
+            issue,
+            section: Type.Union([
+                Type.Literal('issue'),
+                Type.Literal('comments'),
+                Type.Literal('pull-request'),
+            ]),
+            cursor,
+            limit,
+        }),
+        async execute(_id, p, signal, _update, ctx) {
+            return pageResult(await client(ctx.cwd).read(p, signal));
+        },
+    });
+    pi.registerTool({
+        name: 'deus_github_archive_read',
+        annotations: readOnly,
+        label: 'Read durable execution evidence',
+        description: 'Read an immutable private GitHub archive object or manifest at a commit. No local Dexter access.',
+        parameters: Type.Object({
+            repository,
+            ref: Type.String({ pattern: '^[0-9a-f]{40}$' }),
+            path: Type.String(),
+            cursor,
+            limit,
+        }),
+        async execute(_id, p, signal, _update, ctx) {
+            return pageResult(await client(ctx.cwd).archive(p, signal));
+        },
+    });
     pi.registerTool({
         name: 'deus_research_web',
         annotations: { ...readOnly, idempotentHint: false },
@@ -163,7 +117,7 @@ export function registerDexterTools(pi) {
     });
 }
 export default function extension(pi) {
-    registerDexterTools(pi);
+    registerGitHubTools(pi);
     pi.on('before_agent_start', async (event) => ({
         systemPrompt: event.systemPrompt +
             '\n\n' +

@@ -3,7 +3,6 @@ import { redact } from './process.js';
 export type MutationStatus = 'rejected' | 'completed' | 'outcome_unknown';
 export interface MutationReceipt {
   status: MutationStatus;
-  profile?: 'dexter-signed' | 'unknown';
   issue?: string;
   changed?: boolean;
   exitCode: number | null;
@@ -47,7 +46,6 @@ export function mutationReceipt(
   const stderr = redact(p.stderr ?? '');
   return {
     status,
-    profile: p.profile,
     issue: p.issue,
     changed: p.changed,
     exitCode: p.exitCode ?? null,

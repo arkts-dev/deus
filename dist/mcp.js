@@ -2,11 +2,10 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
 import { Type } from 'typebox';
 import { Check } from 'typebox/value';
-import { readFile, readdir, realpath, stat } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
-import { registerDexterTools } from './extension.js';
+import { registerGitHubTools } from './extension.js';
 import { designPath, registerDesignerTools } from './designer.js';
-import { registerBoardTools } from './board.js';
 import { artifactPath, registerFileTools, workspacePath } from './mcp-files.js';
 import { packageRoot, verifySkillIntegrity } from './resources.js';
 import { redact, jsonResult, textResult } from './process.js';
@@ -31,9 +30,8 @@ export async function createDeusServer(workspace) {
             tools.set(tool.name, tool);
         },
     };
-    registerDexterTools(registry);
+    registerGitHubTools(registry);
     registerDesignerTools(registry);
-    registerBoardTools(registry);
     registerFileTools(registry);
     registry.registerTool({
         name: 'deus_workspace_info',
@@ -63,7 +61,7 @@ export async function createDeusServer(workspace) {
     });
     const server = new Server({ name: 'deus', version: manifest.version }, {
         capabilities: { tools: {} },
-        instructions: `Deus runs on the Dexter host. Call deus_workspace_info, then deus_skill_read for the relevant workflow. All workspace/path arguments refer to the server. Use the returned workspace exactly. Use artifact tools for remote code inspection and report/handoff writes; use design tools for designs. Never automatically replay an interrupted mutation.\n\n${kernel}\n\nCalls run in the foreground. Cancellation or disconnection aborts running commands; their outcome may be uncertain. Reconnect and inspect live state. Pi research runs on this host with its configured provider credentials, independently of the Codex model.`,
+        instructions: `Deus uses GitHub independently of Dexter. Call deus_workspace_info, then deus_skill_read for the relevant workflow. All workspace/path arguments refer to the server. Use the returned workspace exactly. Use artifact tools for remote code inspection and report/handoff writes; use design tools for designs. Never automatically replay an interrupted mutation.\n\n${kernel}\n\nCalls run in the foreground. Cancellation or disconnection aborts running commands; their outcome may be uncertain. Reconnect and inspect live state. Pi research runs on this host with its configured provider credentials, independently of the Codex model.`,
     });
     const stop = new AbortController();
     let pending = Promise.resolve();
@@ -103,23 +101,6 @@ export async function createDeusServer(workspace) {
                     artifactPath(rel);
                     await workspacePath(cwd, rel, true);
                     args.path = rel;
-                }
-                if ([
-                    'deus_dexter_issues_live',
-                    'deus_dexter_issues_plan',
-                    'deus_dexter_issue_close',
-                ].includes(tool.name)) {
-                    // The existing board adapter reads these paths directly. Reject link escapes first.
-                    for (const dir of ['forge', 'forge/issues', 'forge/.claims', 'forge/.candidates']) {
-                        await workspacePath(cwd, dir, true);
-                        const names = await readdir(join(cwd, dir)).catch((error) => {
-                            if (error.code === 'ENOENT')
-                                return [];
-                            throw error;
-                        });
-                        for (const name of names)
-                            await workspacePath(cwd, join(dir, name));
-                    }
                 }
                 signal.throwIfAborted();
                 const result = await tool.execute(String(extra.requestId), args, signal, undefined, {

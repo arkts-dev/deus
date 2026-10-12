@@ -1,5 +1,5 @@
-# First public release: v0.3.0
+# Current release contract
 
-This release provides the Pi extension, five original skills, and the pinned Dexter executable bridge. The GitHub Release assets are `deus-ex-machina-0.3.0.tgz` and `SHA256SUMS`.
+Deus 0.3 uses GitHub-only coordination. The hard cutover removes the previous executable bridge and local engineering readers. Saved runtime data is not converted. Product documents and independent research remain supported.
 
-The archive is prebuilt JavaScript and skill content, not a standalone or platform-specific binary. Install in Pi with `pi install git:github.com/arkts-dev/deus@v0.3.0`. The compatible `arkestr` CLI is private and is not bundled. Design and research workflows remain usable without it.
+Release checks cover strict TypeScript, fixture process boundaries, MCP access and cancellation, skill integrity, formatting, and installed-package discovery. Default tests do not contact models or live GitHub.

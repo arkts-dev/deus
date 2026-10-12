@@ -1,14 +1,9 @@
-`deus_dexter_*` API is the sole mechanism for mutating Dexter workspaces. For reading, `deus_dexter_*` are preferred, but if they are insufficient, ordinary read-only tools are allowed. For writing outside Dexter workspaces, all available tools are allowed. When using `deus_dexter_*`:
+Use GitHub-only coordination between Deus and Dexter. Deus supplies product contracts and independent product acceptance. Dexter owns engineering design, decomposition, implementation, review, verification, merge, and engineering closure.
 
-* Use `deus_dexter_probe` to inspect the available Dexter backend and verify its profile:
-  * Consider `dexter-signed` profile as trusted (it recognizes a `dexter` commit verified against `DEUS_DEXTER_TRUSTED_FINGERPRINTS`)
-  * If `profile` is `unknown`, any mutation of the Dexter workspace is prohibited
-* Calls that accept workspace require an absolute path
-* Use each tool's typed arguments
-* A nonzero result, timeout, error, or interrupted command has an uncertain outcome
-* Inspect live state before a new decision
-* Never retry failed mutations automatically
-* If a required mutation is unavailable, report the gap and leave the workspace unchanged
-* Never invoke `dexter` directly in any manner
+Use `deus_github_submit`, `deus_github_answer`, and `deus_github_product_accept` for authorized product operations. Each call uses the existing `gh` login and an installation repository allowlist. Never call Dexter CLI, Temporal RPC, or local runtime storage. No callback or compatibility route exists.
 
-Worker exit, status text, and model claims do not establish product completion. Verify accepted criteria against actual artifacts and tests. Load relevant skills when needed. Unless the user explicitly requests work elsewhere, skills write only tracked Markdown artifacts under `.deus/design/` and `.deus/research/`. Never put credentials, absolute local paths, live logs, or private operation state in those artifacts.
+For evidence, use `deus_github_read` and `deus_github_archive_read`. Read-only operations are allowed as usual. Ordinary read-only tools may inspect product artifacts when the typed readers are insufficient. Cursors bind to one section and content revision. Archives require a private repository and immutable commit.
+
+Never retry failed mutations automatically. A nonzero exit, timeout, error, or cancellation has an uncertain outcome. Inspect GitHub before another decision. If a required mutation is unavailable, report the gap and leave state unchanged.
+
+Worker exit, status text, engineering closure, and model claims do not prove product completion. Verify accepted criteria against actual source and tests. Record product acceptance separately at the exact engineering revision. Load relevant skills when needed. Unless explicitly requested elsewhere, persist only tracked Markdown under `.deus/design/`, `.deus/research/`, or `.deus/handoffs/`. Exclude credentials, absolute local paths, live logs, and private runtime state.

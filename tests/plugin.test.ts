@@ -46,13 +46,7 @@ test('web research is a bounded foreground call and reports no model as unavaila
 
 test('minimal prompt and lazy skills describe tracked artifact contracts', async () => {
   const prompt = await readFile(join(repository, 'prompts/kernel.md'), 'utf8');
-  assert.match(prompt, /`deus_dexter_\*` API is the sole mechanism for mutating/);
-  assert.match(prompt, /For reading, `deus_dexter_\*` are preferred/);
-  assert.match(prompt, /if they are insufficient, ordinary read-only tools are allowed/);
-  assert.match(
-    prompt,
-    /If `profile` is `unknown`, any mutation of the Dexter workspace is prohibited/,
-  );
+  assert.match(prompt, /GitHub-only coordination/);
   assert.match(prompt, /Never retry failed mutations automatically/);
   const common = ['kind', 'id', 'created_at', 'updated_at', 'status', 'references'];
   const research = [...common, 'question', 'mode', 'provider', 'sources', 'gaps'];
@@ -72,7 +66,7 @@ test('minimal prompt and lazy skills describe tracked artifact contracts', async
   assert.ok(designer.trim().split(/\s+/).length < 303);
   for (const pattern of [
     /never amend/i,
-    /never write inside `fs\/` or `forge\/`/i,
+    /never write private runtime state/i,
     /deus_design_check/,
     /deus_design_write/,
     /Reuse settled answers/,
@@ -98,15 +92,7 @@ test('minimal prompt and lazy skills describe tracked artifact contracts', async
     join(repository, 'skills/product-control/SKILL.md'),
     'utf8',
   );
-  for (const pattern of [
-    /\bPRODUCT\b/,
-    /\bNOISE\b/,
-    /\bDEAD\b/,
-    /deus_dexter_issues_live/,
-    /deus_dexter_issues_plan/,
-    /deus_dexter_issue_close/,
-    /Never run the `run` drain/i,
-  ])
+  for (const pattern of [/PRODUCT/, /NOISE/, /DEAD/, /deus_github_read/, /engineering closure/])
     assert.match(productControl, pattern);
   for (const path of ['AGENTS.md', 'skills/dexter-control/SKILL.md']) {
     const text = await readFile(join(repository, path), 'utf8');

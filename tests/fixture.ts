@@ -1,11 +1,10 @@
 import type { TestContext } from 'node:test';
-import { mkdir, mkdtemp, readFile, writeFile, chmod, rm } from 'node:fs/promises';
-import { DexterPlugin, MUTATION_COMMANDS } from '../src/dexter.js';
+import { mkdir, mkdtemp, readFile, writeFile, chmod, rm, realpath } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 
 export async function fixture(t: TestContext, folder = '') {
-  const root = await mkdtemp(join(tmpdir(), 'deus-reader-'));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'deus-reader-')));
   t.after(() => rm(root, { recursive: true, force: true }));
   const put = async (path: string, text: string) => {
     const file = join(root, folder, path);
@@ -24,16 +23,6 @@ export function environment(t: TestContext, key: string, value?: string) {
   });
 }
 export const secret = (t: TestContext, value: string) => environment(t, 'DEUS_TEST_SECRET', value);
-export function trust(t: TestContext, client = DexterPlugin.prototype, signed = true) {
-  t.mock.method(client, 'probe', async () => ({
-    executable: 'fixture',
-    profile: signed ? 'dexter-signed' : 'unknown',
-    baselineRevision: 'fixture',
-    supportedCommands: signed ? MUTATION_COMMANDS : [],
-    diagnostics: {},
-    reasons: signed ? [] : ['test: unsigned'],
-  }));
-}
 export async function program(path: string, body: string) {
   await writeFile(path, `#!${process.execPath}\n${body}`);
   await chmod(path, 0o755);
