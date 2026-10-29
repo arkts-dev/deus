@@ -33,7 +33,9 @@ export async function workspacePath(root, path, missing = false) {
 export function artifactPath(path) {
     const parts = path.split(/[\\/]/).filter((part) => part && part !== '.');
     if (parts.some((part) => ['forge', 'bus', '.git', 'node_modules'].includes(part)) ||
-        parts.some((part) => part === 'dexter.config.json' || part.startsWith('.env')))
+        parts.some((part) => part === 'dexter.config.json' ||
+            part.startsWith('scheduler.sqlite3') ||
+            part.startsWith('.env')))
         throw new Error('Use the dedicated tools for Dexter state; private configuration is excluded');
 }
 const LIMIT = 256_000;

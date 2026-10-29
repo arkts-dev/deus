@@ -21,12 +21,12 @@ export interface ProbeReport {
   verifiedCommit?: string;
   verifiedFingerprint?: string;
 }
-export interface Submission {
+export interface EpicCreation {
   workspace: string;
   title: string;
   body: string;
 }
-export interface IssueCreation extends Submission {
+export interface TaskCreation extends EpicCreation {
   parent?: string;
   dependencies?: string[];
   priority?: number;
@@ -40,15 +40,14 @@ export interface IssueRelink extends IssueTarget {
   addDependencies?: string[];
   removeDependencies?: string[];
 }
-const issueId = (value: string) => /^ISSUE-\d+$/.test(value);
+const issueId = (value: string) => /^ISSUE-(?!0+$)[0-9]{4,}$/.test(value);
 const priorityValid = (value: number) => Number.isInteger(value) && value >= 1 && value <= 4;
 const literal = (value: string) => typeof value === 'string' && !value.includes('\0');
-const submissionValid = (p: Submission) =>
+const submissionValid = (p: EpicCreation) =>
   p.title.trim().length > 0 && literal(p.title) && literal(p.body);
 
 /** Typed mutations use one verified executable/argv route, never a shell or retries. */
 export class DexterPlugin {
-  private cached?: { identity: string; report: ProbeReport };
   constructor(
     readonly executable = process.env.DEXTER_BIN || 'dexter',
     readonly cwd = process.cwd(),
@@ -56,8 +55,6 @@ export class DexterPlugin {
 
   async probe(signal?: AbortSignal): Promise<ProbeReport> {
     const result = await verifyCommitSignature(this.executable, this.cwd, signal);
-    const cacheKey = result.commit ? `commit:${result.commit}` : `error:${result.error}`;
-    if (this.cached?.identity === cacheKey) return this.cached.report;
     const diagnostics = result.diagnostics;
     if (!result.error)
       diagnostics.version = await runProcess(this.executable, ['--version'], {
@@ -74,12 +71,10 @@ export class DexterPlugin {
       verifiedCommit: result.commit || undefined,
       verifiedFingerprint: result.fingerprint ?? undefined,
     };
-    if (!Object.values(diagnostics).some((r) => r.cancelled))
-      this.cached = { identity: cacheKey, report };
     return report;
   }
 
-  submit(p: Submission, signal?: AbortSignal) {
+  createEpic(p: EpicCreation, signal?: AbortSignal) {
     return this.invoke(
       'submit',
       [`--body=${p.body}`, '--', p.title],
@@ -88,7 +83,7 @@ export class DexterPlugin {
       signal,
     );
   }
-  createIssue(p: IssueCreation, signal?: AbortSignal) {
+  createTask(p: TaskCreation, signal?: AbortSignal) {
     const args = [`--title=${p.title}`, `--body=${p.body}`, '--priority', String(p.priority ?? 3)];
     if (p.parent !== undefined) args.push('--parent', p.parent);
     if (p.dependencies?.length) args.push('--depends', p.dependencies.join(','));
@@ -139,7 +134,7 @@ export class DexterPlugin {
       [p.issue, '--candidate', p.candidate, `--reason=${p.reason}`],
       p,
       issueId(p.issue) &&
-        /^AC-\d+$/.test(p.candidate) &&
+        /^AC-(?!0+$)[0-9]{6,}$/.test(p.candidate) &&
         literal(p.reason) &&
         p.reason.trim().length > 0,
       signal,
@@ -172,6 +167,7 @@ export class DexterPlugin {
       cwd: this.cwd,
       signal,
       truncateOutput: true,
+      timeoutMs: null,
     });
     const status =
       raw.exitCode === 0 && !raw.error && !raw.timedOut && !raw.cancelled && !raw.signal

@@ -6,7 +6,7 @@ import extension from '../src/extension.js';
 import board from '../src/board.js';
 import designer from '../src/designer.js';
 import { DexterPlugin } from '../src/dexter.js';
-import { fixture } from './fixture.js';
+import { fixture, schedulerFixture } from './fixture.js';
 
 type Tool = {
   name: string;
@@ -27,7 +27,7 @@ async function call(tool: Tool, parameters: unknown, cwd: string) {
 
 test('registered schemas accept explicit defaults and reject invalid choices', () => {
   const registered = tools();
-  const create = registered.get('deus_dexter_issue_create')!;
+  const create = registered.get('deus_dexter_task_create')!;
   const submission = { workspace: '/tmp/project', title: 'Task', body: 'Body' };
   assert.ok(
     Value.Check(create.parameters, { ...submission, parent: null, dependencies: [], priority: 3 }),
@@ -50,12 +50,9 @@ test('registered schemas accept explicit defaults and reject invalid choices', (
       }),
       false,
     );
-  const research = registered.get('deus_research_web')!;
-  assert.ok(Value.Check(research.parameters, { question: 'Public question', provider: 'default' }));
-  assert.equal(
-    Value.Check(research.parameters, { question: 'Public question', provider: null }),
-    false,
-  );
+  for (const removed of ['deus_research_web', 'deus_dexter_submit', 'deus_dexter_issue_create'])
+    assert.equal(registered.has(removed), false);
+  assert.ok(registered.has('deus_dexter_epic_create'));
   const close = registered.get('deus_dexter_issue_close')!;
   assert.ok(
     Value.Check(close.parameters, {
@@ -74,11 +71,11 @@ test('registered mutations normalize parent intent at the adapter boundary', asy
   const submission = { workspace, title: 'Task', body: 'Body', dependencies: [], priority: 3 };
   const create = t.mock.method(
     DexterPlugin.prototype,
-    'createIssue',
+    'createTask',
     async () => ({ status: 'rejected' }) as never,
   );
   for (const parent of [null, 'ISSUE-0001']) {
-    await call(registered.get('deus_dexter_issue_create')!, { ...submission, parent }, workspace);
+    await call(registered.get('deus_dexter_task_create')!, { ...submission, parent }, workspace);
     assert.deepEqual(create.mock.calls.at(-1)!.arguments, [
       { ...submission, parent: parent ?? undefined },
       undefined,
@@ -102,10 +99,7 @@ test('registered mutations normalize parent intent at the adapter boundary', asy
 test('registered readers accept explicit first-page and default-size values', async (t) => {
   const { root, put } = await fixture(t);
   await put('forge/issues/ISSUE-0001-task.md', '---\nid: ISSUE-0001\nstatus: open\n---\n\nBody\n');
-  await put(
-    'bus/000001-run.started.md',
-    '---\nseq: 1\nts: 2026-10-08T20:00:00Z\ntype: run.started\n---\n\nBody\n',
-  );
+  await schedulerFixture(root);
   const registered = tools();
   const issue = registered.get('deus_dexter_issue_read')!;
   const result = await call(

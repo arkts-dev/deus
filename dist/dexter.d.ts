@@ -11,12 +11,12 @@ export interface ProbeReport {
     verifiedCommit?: string;
     verifiedFingerprint?: string;
 }
-export interface Submission {
+export interface EpicCreation {
     workspace: string;
     title: string;
     body: string;
 }
-export interface IssueCreation extends Submission {
+export interface TaskCreation extends EpicCreation {
     parent?: string;
     dependencies?: string[];
     priority?: number;
@@ -34,11 +34,10 @@ export interface IssueRelink extends IssueTarget {
 export declare class DexterPlugin {
     readonly executable: string;
     readonly cwd: string;
-    private cached?;
     constructor(executable?: string, cwd?: string);
     probe(signal?: AbortSignal): Promise<ProbeReport>;
-    submit(p: Submission, signal?: AbortSignal): Promise<MutationReceipt>;
-    createIssue(p: IssueCreation, signal?: AbortSignal): Promise<MutationReceipt>;
+    createEpic(p: EpicCreation, signal?: AbortSignal): Promise<MutationReceipt>;
+    createTask(p: TaskCreation, signal?: AbortSignal): Promise<MutationReceipt>;
     nudgeIssue(p: IssueTarget, signal?: AbortSignal): Promise<MutationReceipt>;
     reprioritizeIssue(p: IssueTarget & {
         priority: number;

@@ -1,82 +1,57 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdir, rm, symlink } from 'node:fs/promises';
+import { readFile, readdir, rm, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { hostname } from 'node:os';
 import { botsLive, EventReader } from '../src/operations.js';
-import { fixture, secret } from './fixture.js';
-test('bot PID/heartbeat ownership, claim witnesses and policy cooldown', async (t) => {
+import { fixture, secret, schedulerFixture, schedulerWrite, eventFixture } from './fixture.js';
+
+test('current run leases expose PID/heartbeat ownership, not obsolete bots, claims or guessed cooldown', async (t) => {
   const { root, put } = await fixture(t);
-  for (const dir of ['forge/bots', 'forge/.claims'])
-    await mkdir(join(root, dir), { recursive: true });
+  await schedulerFixture(root);
+  await put('dexter.config.json', '{"heartbeat_ttl_seconds":60}');
   const now = '2026-10-07T07:00:00Z',
     old = '2026-10-07T06:00:00Z';
   t.mock.method(Date, 'now', () => Date.parse(now));
-  await put(
-    'dexter.config.json',
-    JSON.stringify({
-      max_concurrent_runs: 4,
-      default_llm_config: { model: 'deepseek-flash', base_url: 'https://api.deepseek.com/v1' },
-    }),
-  );
-  const bot = async (id: string, host: string, ts: string, status = 'working') =>
-    put(
-      `forge/bots/${id}.md`,
-      `---\nid: ${id}\nrole: implementer\nstatus: ${status}\nworker: owner\nhost: ${host}\npid: ${process.pid}\nlast_heartbeat: ${ts}\ncurrent_issue: ISSUE-0001\ncurrent_mr: MR-0001\ncurrent_run: RUN-abc-0001\n---\n`,
-    );
-  await bot('BOT-0001', hostname(), old);
-  await bot('BOT-0002', 'other-host', now);
-  await bot('BOT-0003', 'other-host', old);
-  await bot('BOT-0004', hostname(), now, 'offline');
-  const claim = async (resource: string, ts: string, witness = '') =>
-    put(
-      `forge/.claims/${resource.replace(':', '_')}.lock`,
-      `${resource}\nowner\n${hostname()}\n${process.pid}\n${ts}\n${witness}\n`,
-    );
-  await claim('issue:ISSUE-0001', old, 'lane:planning');
-  await claim('lane:planning', now);
+  schedulerWrite(root, (db) => {
+    const insert = db.prepare('INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?)');
+    insert.run('RUN-000001', 'implementer', 'working', hostname(), process.pid, 'ISSUE-0001', old);
+    insert.run('RUN-remote', 'reviewer', 'working', 'remote', 1, 'ISSUE-0002', now);
+    insert.run('RUN-remote.stale', 'reviewer', 'working', 'remote', 1, null, old);
+    insert.run('RUN-finished', 'reviewer', 'finished', null, null, null, now);
+  });
+  // These obsolete artifacts must not be consulted.
+  await put('forge/.claims/issue_ISSUE-9999.lock', 'broken');
+  await put('forge/bots/BOT-0001.md', 'broken');
+  const before = await readFile(join(root, 'scheduler.sqlite3'));
   const live = await botsLive(root);
   assert.deepEqual(
-    live.bots.map((b) => b.active),
+    live.runs.map((r) => r.active),
     [true, true, false],
   );
-  assert.equal(live.bots[0]!.livenessBasis, 'local_pid');
-  assert.equal(live.bots[1]!.livenessBasis, 'heartbeat');
-  assert.deepEqual(live.bots[0]!.claims, ['issue:ISSUE-0001', 'lane:planning']);
-  assert.equal(live.bots[0]!.mr, 'MR-0001');
-  assert.equal(live.bots[0]!.run, 'RUN-abc-0001');
-  assert.equal(live.claims[0]!.stale, false);
-  assert.deepEqual(live.cooldown, {
-    basis: 'persisted_config',
-    configured: 4,
-    policyLimit: 1,
-    endsAt: '2026-10-07T10:00:00.000Z',
-  });
-  await claim('lane:planning', old);
-  assert.equal((await botsLive(root)).claims[0]!.stale, true);
+  assert.equal(live.runs[0]!.livenessBasis, 'local_pid');
+  assert.equal(live.runs[1]!.livenessBasis, 'heartbeat');
+  assert.equal(live.runs[0]!.issue, 'ISSUE-0001');
+  assert.equal(live.reservations, 'not_observable');
+  assert.equal(live.throttling, 'not_observable');
+  assert.deepEqual(await readFile(join(root, 'scheduler.sqlite3')), before);
   t.mock.method(process, 'kill', () => {
     throw Object.assign(new Error(), { code: 'ESRCH' });
   });
-  assert.equal((await botsLive(root)).bots[0]!.active, false);
-  await put(
-    'dexter.config.json',
-    '{"max_concurrent_runs":4,"default_llm_config":{"model":"cortex"}}',
-  );
-  assert.equal((await botsLive(root)).cooldown.endsAt, null);
+  assert.equal((await botsLive(root)).runs[0]!.active, false);
   await assert.rejects(botsLive('relative'), /absolute/);
-  await put('forge/.claims/issue_ISSUE-0001.lock', 'broken');
-  await assert.rejects(botsLive(root), /claim/);
+  schedulerWrite(root, (db) =>
+    db.prepare("UPDATE runs SET host = NULL WHERE id = 'RUN-000001'").run(),
+  );
+  await assert.rejects(botsLive(root), /ownership/);
 });
-test('newest-first bounded event pages survive appends and reject invalid cursors and paths', async (t) => {
-  const { root, put } = await fixture(t);
-  const reader = new EventReader();
-  const event = async (seq: number, note = 'started') =>
-    put(
-      `bus/${String(seq).padStart(6, '0')}-run.started.md`,
-      `---\nseq: ${seq}\nts: 2026-10-07T07:00:00Z\ntype: run.started\nissue: ISSUE-0001\nnote: ${note}\n---\nPRIVATE BODY`,
-    );
-  for (let i = 1; i <= 5; i++) await event(i);
-  const p = { workspace: root, limit: 2 };
+
+test('SQLite event pages survive appends, redact, omit bodies and reject invalid cursors and metadata', async (t) => {
+  const { root } = await fixture(t);
+  await schedulerFixture(root);
+  for (let i = 1; i <= 5; i++) eventFixture(root, i);
+  const reader = new EventReader(),
+    p = { workspace: root, limit: 2 };
   const first = await reader.read(p);
   assert.deepEqual(
     first.events.map((e) => e.seq),
@@ -85,7 +60,7 @@ test('newest-first bounded event pages survive appends and reject invalid cursor
   assert.ok(first.nextCursor);
   assert.ok(!JSON.stringify(first).includes('PRIVATE BODY'));
   assert.ok(!JSON.stringify(first).includes(root));
-  await event(6);
+  eventFixture(root, 6);
   const second = await reader.read({ ...p, cursor: first.nextCursor });
   assert.deepEqual(
     second.events.map((e) => e.seq),
@@ -111,26 +86,20 @@ test('newest-first bounded event pages survive appends and reject invalid cursor
     /another workspace/,
   );
   secret(t, 'private-event-token');
-  await event(7, 'private-event-token');
+  eventFixture(root, 7, 'private-event-token');
   assert.equal((await reader.read(p)).events[0]!.note, '[REDACTED]');
-  await event(8, 'x'.repeat(17000));
+  eventFixture(root, 8, 'x'.repeat(17000));
   await assert.rejects(reader.read(p), /16 KiB/);
-  await rm(join(root, 'bus/000008-run.started.md'));
-  await put('outside.md', 'private');
-  await symlink(join(root, 'outside.md'), join(root, 'bus/000008-run.started.md'));
-  await assert.rejects(reader.read(p), /front matter/);
-  await rm(join(root, 'bus/000008-run.started.md'));
-  await symlink('/etc/passwd', join(root, 'bus/000008-run.started.md'));
-  await assert.rejects(reader.read(p), /escapes/);
+  schedulerWrite(root, (db) =>
+    db.prepare("UPDATE notification_events SET seq_length = 99 WHERE seq = '8'").run(),
+  );
+  await assert.rejects(reader.read(p), /sequence/);
 });
 
-test('event wire pages omit absent fields, stay bounded, and continue without dropping events', async (t) => {
-  const { root, put } = await fixture(t);
-  for (let seq = 1; seq <= 30; seq++)
-    await put(
-      `bus/${String(seq).padStart(6, '0')}-run.started.md`,
-      `---\nseq: ${seq}\nts: 2026-10-07T07:00:00Z\ntype: run.started\nnote: ${'x'.repeat(700)}\n---\n`,
-    );
+test('event wire pages stay bounded and continue without dropping events', async (t) => {
+  const { root } = await fixture(t);
+  await schedulerFixture(root);
+  for (let seq = 1; seq <= 30; seq++) eventFixture(root, seq, 'x'.repeat(700));
   const reader = new EventReader();
   let cursor: string | null = null;
   const seen: unknown[] = [];
@@ -147,4 +116,16 @@ test('event wire pages omit absent fields, stay bounded, and continue without dr
     seen,
     Array.from({ length: 30 }, (_, i) => 30 - i),
   );
+});
+
+test('missing databases and escaping links never initialize state or use legacy bus files', async (t) => {
+  const { root, put } = await fixture(t);
+  await put('bus/000001-run.started.md', 'obsolete');
+  await assert.rejects(new EventReader().read({ workspace: root }));
+  assert.deepEqual(await readdir(root), ['bus']);
+  const outside = await fixture(t);
+  await schedulerFixture(outside.root);
+  await symlink(join(outside.root, 'scheduler.sqlite3'), join(root, 'scheduler.sqlite3'));
+  await assert.rejects(new EventReader().read({ workspace: root }), /escapes/);
+  await rm(join(root, 'scheduler.sqlite3'));
 });

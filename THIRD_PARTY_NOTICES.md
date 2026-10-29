@@ -3,7 +3,6 @@
 Deus uses these npm dependencies, separately installed under their own licenses:
 
 - `@earendil-works/pi-coding-agent` 0.85.1 — MIT.
-- `pi-web-access` 0.29.0 — MIT.
 - `typebox` 1.3.7 — MIT.
 - `yaml` 2.9.0 — ISC.
 - `@modelcontextprotocol/sdk` 1.32.1 — MIT.

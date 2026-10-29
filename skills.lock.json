@@ -5,7 +5,7 @@
     {
       "output": "skills/dexter-control/SKILL.md",
       "origin": "deus-original",
-      "sha256": "90af07660d787c01acf35e3faa7a8d6e79057d0d89acd1aabb323345379a3001"
+      "sha256": "ef261fc842ae2c1d5381867db5020eb63f258cf061df55b6d456bd1904923557"
     },
     {
       "output": "skills/designer/SKILL.md",
@@ -15,17 +15,17 @@
     {
       "output": "skills/product-control/SKILL.md",
       "origin": "deus-original",
-      "sha256": "fe840ff47fcbdaaec2f1828e47db3265fc5538b4a4bf64c00168a87580c689a6"
+      "sha256": "eb6361f79ffe4e9dec07f40c2732bfb556c9369c8a1560ed4e721974cbce409c"
     },
     {
       "output": "skills/web-research/SKILL.md",
       "origin": "deus-original",
-      "sha256": "73245e8505d1e6f14df06236bc0b30a7ce946e5a1cc7d64f0069608ca95d4311"
+      "sha256": "77ca77d84b59330db3dff97d8c2df8cf5ea08097b78224fb9b5d1d7c2aec32d5"
     },
     {
       "output": "skills/local-research/SKILL.md",
       "origin": "deus-original",
-      "sha256": "d70c0a9effd8ba9c01f9dcc2ee35619bfed15128d4686e5d744f7acff3a90e2c"
+      "sha256": "9c557914bf99b2a62637c5b74eaae1115d5d1aef504f351b17e22f4c126337e4"
     },
     {
       "output": "skills/simplify-review/SKILL.md",

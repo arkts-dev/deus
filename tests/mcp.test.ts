@@ -11,11 +11,20 @@ import { registerDexterTools } from '../src/extension.js';
 import { registerDesignerTools } from '../src/designer.js';
 import { registerBoardTools } from '../src/board.js';
 import type { ToolRegistrar } from '../src/tool-registry.js';
-import { ModelRuntime } from '@earendil-works/pi-coding-agent';
-import { fixture, secret, environment, trust, program, waitFile } from './fixture.js';
+import {
+  fixture,
+  secret,
+  environment,
+  trust,
+  program,
+  waitFile,
+  schedulerFixture,
+  eventFixture,
+} from './fixture.js';
 
 async function setup(t: TestContext) {
   const { root, put } = await fixture(t);
+  await schedulerFixture(root);
   const app = await createDeusServer(root);
   const client = new Client({ name: 'deus-test', version: '1' });
   const [a, b] = InMemoryTransport.createLinkedPair();
@@ -146,13 +155,13 @@ test('MCP exposes current typed tools and original skills with accurate annotati
   await reject('absent', {});
 });
 
-test('MCP preserves trust refusal, reader pagination and web no-model behavior', async (t) => {
+test('MCP preserves trust refusal and current scheduler pagination', async (t) => {
   const { root, call, put } = await setup(t);
   trust(t, DexterPlugin.prototype, false);
   for (const [name, args] of [
-    ['deus_dexter_submit', { title: 'task', body: '', workspace: root }],
+    ['deus_dexter_epic_create', { title: 'task', body: '', workspace: root }],
     [
-      'deus_dexter_issue_create',
+      'deus_dexter_task_create',
       { title: 'task', body: '', workspace: root, parent: null, dependencies: [], priority: 3 },
     ],
     [
@@ -169,11 +178,7 @@ test('MCP preserves trust refusal, reader pagination and web no-model behavior',
   const first = await call('deus_dexter_wiki_read', request);
   const second = await call('deus_dexter_wiki_read', { ...request, cursor: first.nextCursor });
   assert.equal(second.revision, first.revision);
-  for (const seq of [1, 2])
-    await put(
-      `bus/00000${seq}-run.started.md`,
-      `---\nseq: ${seq}\nts: 2026-10-07T07:00:00Z\ntype: run.started\n---\n`,
-    );
+  for (const seq of [1, 2]) eventFixture(root, seq);
   const events = await call('deus_dexter_events_read', { workspace: root, cursor: null, limit: 1 });
   assert.equal(events.events[0].seq, 2);
   assert.equal(
@@ -186,15 +191,8 @@ test('MCP preserves trust refusal, reader pagination and web no-model behavior',
     ).events[0].seq,
     1,
   );
-  await put('dexter.config.json', '{}');
-  for (const dir of ['forge/bots', 'forge/.claims'])
-    await mkdir(join(root, dir), { recursive: true });
-  assert.deepEqual((await call('deus_dexter_bots_live', { workspace: root })).bots, []);
-  t.mock.method(ModelRuntime, 'create', async () => ({ getAvailableSnapshot: () => [] }));
-  assert.deepEqual(
-    await call('deus_research_web', { question: 'Public offline question', provider: 'fetch' }),
-    { status: 'unavailable', reason: 'No model configured' },
-  );
+  await put('dexter.config.json', '{"heartbeat_ttl_seconds":60}');
+  assert.deepEqual((await call('deus_dexter_bots_live', { workspace: root })).runs, []);
 });
 
 test('MCP writes designs once, reads artifacts, and rejects path escapes including renamed board tools', async (t) => {
@@ -233,6 +231,8 @@ test('MCP writes designs once, reads artifacts, and rejects path escapes includi
     '.git/config',
     '.env',
     'dexter.config.json',
+    'scheduler.sqlite3',
+    'scheduler.sqlite3-journal',
   ])
     await reject('deus_artifact_read', { path, offset: 0, maxBytes: 4096 });
   for (const path of ['escape/x.md', 'bus/design.md', '.git/design.md', '.env']) {
@@ -264,11 +264,11 @@ test('MCP preserves board planning, close confirmation and trusted mutation rece
   trust(t);
   await put(
     'forge/issues/ISSUE-0001.md',
-    '---\nid: ISSUE-0001\nkind: task\nstatus: open\nparent: ISSUE-0000\nworkdir: null\nmr: null\nassignee: null\ndepends_on: []\n---\nCoverage is 100%.\n',
+    '---\nid: ISSUE-0001\nkind: task\nstatus: open\nparent: ISSUE-0002\nworkdir: null\nmr: null\nassignee: null\ndepends_on: []\n---\nCoverage is 100%.\n',
   );
   await put(
-    'forge/issues/ISSUE-0000.md',
-    '---\nid: ISSUE-0000\nkind: epic\nstatus: open\nparent: null\ndepends_on: []\n---\nCompiler rejects invalid programs.\n',
+    'forge/issues/ISSUE-0002.md',
+    '---\nid: ISSUE-0002\nkind: epic\nstatus: open\nparent: null\ndepends_on: []\n---\nCompiler rejects invalid programs.\n',
   );
   assert.equal(
     (await call('deus_dexter_issues_live', { workspace: root, cursor: null, limit: 20 })).records
@@ -296,13 +296,14 @@ test('MCP preserves board planning, close confirmation and trusted mutation rece
   );
   assert.equal(
     (await call('deus_dexter_issue_close', { ...args, confirm: true })).status,
-    'completed',
+    'rejected',
   );
+  await put('forge/issues/ISSUE-0003.md', '---\nid: ISSUE-0003\nstatus: open\n---\nProduct\n');
   await reject('deus_dexter_issues_live', { workspace: root, cursor: page.nextCursor, limit: 1 });
   assert.equal(
     (await call('deus_dexter_issues_live', { workspace: root, cursor: null, limit: 20 })).records
       .length,
-    1,
+    3,
   );
 });
 
@@ -339,7 +340,7 @@ for (const disconnect of [false, true])
     const controller = new AbortController();
     const running = client.callTool(
       {
-        name: 'deus_dexter_submit',
+        name: 'deus_dexter_epic_create',
         arguments: { title: 'literal;$(nope)', body: '', workspace: root },
       },
       undefined,

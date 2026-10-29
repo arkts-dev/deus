@@ -70,7 +70,7 @@ export async function createDeusServer(workspace: string) {
     { name: 'deus', version: manifest.version },
     {
       capabilities: { tools: {} },
-      instructions: `Deus runs on the Dexter host. Call deus_workspace_info, then deus_skill_read for the relevant workflow. All workspace/path arguments refer to the server. Use the returned workspace exactly. Use artifact tools for remote code inspection and report/handoff writes; use design tools for designs. Never automatically replay an interrupted mutation.\n\n${kernel}\n\nCalls run in the foreground. Cancellation or disconnection aborts running commands; their outcome may be uncertain. Reconnect and inspect live state. Pi research runs on this host with its configured provider credentials, independently of the Codex model.`,
+      instructions: `Deus runs on the Dexter host. Call deus_workspace_info, then deus_skill_read for the relevant workflow. All workspace/path arguments refer to the server. Use the returned workspace exactly. Use artifact tools for remote code inspection and report/handoff writes; use design tools for designs. Never automatically replay an interrupted mutation.\n\n${kernel}\n\nCalls run in the foreground. Cancellation or disconnection aborts running commands; their outcome may be uncertain. Reconnect and inspect live state. Public research uses the client's web tools; Deus does not start model sessions.`,
     },
   );
   const stop = new AbortController();
@@ -119,7 +119,7 @@ export async function createDeusServer(workspace: string) {
           ].includes(tool.name)
         ) {
           // The existing board adapter reads these paths directly. Reject link escapes first.
-          for (const dir of ['forge', 'forge/issues', 'forge/.claims', 'forge/.candidates']) {
+          for (const dir of ['forge', 'forge/issues', 'forge/.candidates']) {
             await workspacePath(cwd, dir, true);
             const names = await readdir(join(cwd, dir)).catch((error: NodeJS.ErrnoException) => {
               if (error.code === 'ENOENT') return [];

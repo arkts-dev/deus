@@ -4,7 +4,7 @@ Deus 0.3 is an open-source [Pi](https://github.com/earendil-works/pi-mono) packa
 
 ## Requirements and installation
 
-Node ≥22.19, npm, Git, Pi 0.85.1; a configured Pi model for research. Dexter is unbundled, unnecessary for design/research, and requires a trusted signed checkout for mutations. Packages inherit user permissions; review source.
+Node ≥22.19, npm, Git, Pi; host web tools for public research. Dexter is unbundled, unnecessary for design/research, and requires a trusted signed checkout for mutations. Packages inherit user permissions; review source.
 
 ```sh
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.85.1
@@ -20,8 +20,8 @@ Start Pi in your project; request designer, product-control, research, or `deus_
 
 `deus_dexter_probe({diagnostics:false})` returns trust evidence; true adds bounded diagnostics. Six mutations require absolute workspaces and verified executable/argv, without shells or retries:
 
-- `deus_dexter_submit({workspace,title,body})`
-- `deus_dexter_issue_create({workspace,title,body,parent,dependencies,priority})`: standalone parent null; dependencies []; normal priority 3 (1 highest, 4 lowest).
+- `deus_dexter_epic_create({workspace,title,body})`: creates an objective for decomposition.
+- `deus_dexter_task_create({workspace,title,body,parent,dependencies,priority})`: standalone parent null; dependencies []; normal priority 3 (1 highest, 4 lowest).
 - `deus_dexter_issue_nudge({workspace,issue})`
 - `deus_dexter_issue_reprioritize({workspace,issue,priority})`
 - `deus_dexter_issue_relink({workspace,issue,parent,addDependencies,removeDependencies})`: parent "unchanged" retains, null clears, ID replaces; [] means no dependency changes.
@@ -42,13 +42,13 @@ Responses: `{id,section,text,revision,nextCursor}`. Normally limit 2048 UTF-8 by
 
 The CLI lacks structured pagination/run reads. Readers access host-local Forge files (≤64 MiB/file/history); ordinary read-only inspection remains available.
 
-`deus_dexter_issues_live`/`issues_plan` take `{workspace,cursor,limit}` (normally null/20), returning records/total/revision/nextCursor, ≤8 KiB/page. Changes invalidate cursors. Live records retain readiness/claims/blockers; plans retain classifications/actions/closures. `deus_dexter_issue_close` guards approved closure; successor is ID/null. Initialization, drain, directives, request answers/denials, config and doctor are unexposed.
+`deus_dexter_issues_live`/`issues_plan` take `{workspace,cursor,limit}` (normally null/20), returning records/total/revision/nextCursor, ≤8 KiB/page. Changes invalidate cursors. Live records retain readiness/claims/blockers; plans retain classifications/actions/closures. `deus_dexter_issue_close` validates approved requests but returns rejected: current Dexter has no guarded leaf-close CLI operation. It never edits Forge or substitutes subtree rejection; successor is ID/null. Initialization, drain, directives, request answers/denials, config and doctor are unexposed.
 
-`deus_dexter_bots_live({workspace})`: working/stale bots, targets, correlated claims, PID/heartbeat liveness; ≤16 KiB. Cooldown estimates persisted-config policy, not observed scheduler settings.
+`deus_dexter_bots_live({workspace})`: returns `runs` from working leases in `scheduler.sqlite3`, including stale owners, issue targets and PID/heartbeat liveness; ≤16 KiB. This is owner liveness, not agent progress. Process-local reservations and throttling are explicitly not observable. Board `claimed` means a working issue lease, not an obsolete claim file.
 
-`deus_dexter_events_read({workspace,cursor,limit})`: newest-first summaries, no bodies; normally null/20; max 100 records/8 KiB. Backward continuation survives appends; cursors expire on reload.
+`deus_dexter_events_read({workspace,cursor,limit})`: newest-first SQLite notification summaries, no bodies; normally null/20; max 100 records/8 KiB. Backward continuation survives appends; cursors expire on reload.
 
-`DEXTER_BIN` overrides `dexter` on PATH. Pin comma-separated, full `DEUS_DEXTER_TRUSTED_FINGERPRINTS`. `git verify-commit` checks the executable's checkout; verified signer/commit yield `dexter-signed`. Unknown profile blocks all mutations, including closure, not reads.
+`DEXTER_BIN` overrides `dexter` on PATH. Pin comma-separated, full `DEUS_DEXTER_TRUSTED_FINGERPRINTS`. `git verify-commit` checks the executable's checkout; verified signer/commit yield `dexter-signed`. Unknown profile blocks all mutations, not reads. Signature verification runs before each mutation; installed public keys avoid keyserver dependence. CLI mutations have no automatic deadline; explicit cancellation remains available.
 
 Independently verify the signer—not merely repository output:
 
@@ -60,11 +60,11 @@ export DEUS_DEXTER_TRUSTED_FINGERPRINTS=968479A1AFF927E37D1A566BB5690EEEBB952194
 
 GitHub's published web-flow key applies to GitHub-signed merges; independently verify other maintainers. Never use short IDs. Dexter/config services are unbundled.
 
-`deus_dexter_metrics({workspace,since,until,utcOffsetMinutes})`: ≤7 days/8 KiB; exclusive end, fixed offset (180 = +03:00), no DST. Daily runs: totals/exact observed-role breakdowns; workspace review activity separate. Run-start cohorts use collection-start outcome cutoff. `dayClosed` means calendar day ended; collection is nontransactional. Recorded duration/prompt samples; unsampled sums null. Invalid/unavailable sources error. No Git/MR delivery attribution, context, gate, CPU, liveness or acceptance claims.
+`deus_dexter_metrics({workspace,since,until,utcOffsetMinutes})`: ≤7 days/8 KiB; exclusive end, fixed offset (180 = +03:00), no DST. Daily runs: totals/exact observed-role breakdowns; workspace review activity separate. Run-start cohorts use collection-start outcome cutoff. `dayClosed` means calendar day ended; collection is nontransactional. Terminal wall durations derive from `updated_at - started_at`; prompt counters are sampled; unsampled sums null. Cancelled runs count as failed; `failure_reason: timed_out` identifies timeouts. Invalid/unavailable sources error. No Git/MR delivery attribution, context, gate, CPU, liveness or acceptance claims.
 
 ### Public web research
 
-`deus_research_web({question,provider})`: bounded foreground research isolated from projects. "default" uses configuration; Exa `EXA_API_KEY`, SearXNG `DEUS_SEARXNG_URL`, Brave `BRAVE_API_KEY`, Tavily `TAVILY_API_KEY`. `DEUS_WEB_PROVIDER` selects explicitly; otherwise Exa precedes SearXNG. `fetch` inspects public URLs, not search discovery. Never send private text/credentials.
+The `web-research` skill uses the host agent's web tools. Deus exposes no public research API, provider configuration, or nested model session. Never send private text or credentials to public sources.
 
 ## Development
 

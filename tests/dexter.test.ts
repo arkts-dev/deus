@@ -6,9 +6,9 @@ import { join } from 'node:path';
 import { DexterPlugin } from '../src/dexter.js';
 
 const operations = (c: DexterPlugin, workspace: string) => [
-  () => c.submit({ workspace, title: 'literal;$(touch nope)', body: 'two words' }),
+  () => c.createEpic({ workspace, title: 'literal;$(touch nope)', body: 'two words' }),
   () =>
-    c.createIssue({
+    c.createTask({
       workspace,
       title: 'title',
       body: '--dir=/other',
@@ -40,7 +40,7 @@ test('unknown signature blocks every typed mutation and generic execution is abs
   const probe = await c.probe();
   assert.equal(probe.profile, 'unknown');
   assert.deepEqual(probe.supportedCommands, []);
-  assert.equal(await c.probe(), probe);
+  assert.deepEqual(await c.probe(), probe);
   for (const run of operations(c, '/tmp/workspace')) {
     const r = await run();
     assert.equal(r.status, 'rejected');
@@ -59,7 +59,7 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
   );
   for (const run of operations(c, dir)) assert.equal((await run()).status, 'completed');
   await c.relinkIssue({ workspace: dir, issue: 'ISSUE-0001', parent: 'ISSUE-0004' });
-  await c.createIssue({
+  await c.createTask({
     workspace: dir,
     title: 'Standalone',
     body: 'Body',

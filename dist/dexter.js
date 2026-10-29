@@ -10,7 +10,7 @@ export const MUTATION_COMMANDS = [
     'relink-issue',
     'accept-architecture',
 ];
-const issueId = (value) => /^ISSUE-\d+$/.test(value);
+const issueId = (value) => /^ISSUE-(?!0+$)[0-9]{4,}$/.test(value);
 const priorityValid = (value) => Number.isInteger(value) && value >= 1 && value <= 4;
 const literal = (value) => typeof value === 'string' && !value.includes('\0');
 const submissionValid = (p) => p.title.trim().length > 0 && literal(p.title) && literal(p.body);
@@ -18,16 +18,12 @@ const submissionValid = (p) => p.title.trim().length > 0 && literal(p.title) && 
 export class DexterPlugin {
     executable;
     cwd;
-    cached;
     constructor(executable = process.env.DEXTER_BIN || 'dexter', cwd = process.cwd()) {
         this.executable = executable;
         this.cwd = cwd;
     }
     async probe(signal) {
         const result = await verifyCommitSignature(this.executable, this.cwd, signal);
-        const cacheKey = result.commit ? `commit:${result.commit}` : `error:${result.error}`;
-        if (this.cached?.identity === cacheKey)
-            return this.cached.report;
         const diagnostics = result.diagnostics;
         if (!result.error)
             diagnostics.version = await runProcess(this.executable, ['--version'], {
@@ -44,14 +40,12 @@ export class DexterPlugin {
             verifiedCommit: result.commit || undefined,
             verifiedFingerprint: result.fingerprint ?? undefined,
         };
-        if (!Object.values(diagnostics).some((r) => r.cancelled))
-            this.cached = { identity: cacheKey, report };
         return report;
     }
-    submit(p, signal) {
+    createEpic(p, signal) {
         return this.invoke('submit', [`--body=${p.body}`, '--', p.title], p, submissionValid(p), signal);
     }
-    createIssue(p, signal) {
+    createTask(p, signal) {
         const args = [`--title=${p.title}`, `--body=${p.body}`, '--priority', String(p.priority ?? 3)];
         if (p.parent !== undefined)
             args.push('--parent', p.parent);
@@ -86,7 +80,7 @@ export class DexterPlugin {
     }
     acceptArchitecture(p, signal) {
         return this.invoke('accept-architecture', [p.issue, '--candidate', p.candidate, `--reason=${p.reason}`], p, issueId(p.issue) &&
-            /^AC-\d+$/.test(p.candidate) &&
+            /^AC-(?!0+$)[0-9]{6,}$/.test(p.candidate) &&
             literal(p.reason) &&
             p.reason.trim().length > 0, signal);
     }
@@ -110,6 +104,7 @@ export class DexterPlugin {
             cwd: this.cwd,
             signal,
             truncateOutput: true,
+            timeoutMs: null,
         });
         const status = raw.exitCode === 0 && !raw.error && !raw.timedOut && !raw.cancelled && !raw.signal
             ? 'completed'

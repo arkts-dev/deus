@@ -2,17 +2,18 @@
 import { readOnly, type ToolRegistrar } from './tool-registry.js';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
-import { readFile, readdir, writeFile } from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
+import { readdir } from 'node:fs/promises';
+import { document, safePath, source, ISSUE_ID } from './artifacts.js';
+import { workingRuns } from './scheduler.js';
+import { isAbsolute } from 'node:path';
 import { jsonResult as output } from './process.js';
 import { mutationReceipt } from './receipt.js';
 import { DexterPlugin } from './dexter.js';
 import { RecordPager } from './cursor.js';
-import { banned, field, frontmatter, list, terms } from './governance.js';
+import { banned, terms } from './governance.js';
 
 const TERMINAL = new Set(['closed', 'rejected']);
 const READY = new Set(['open', 'ready']);
-const CLAIM = /^issue_(.+)\.lock$/;
 const CANDIDATE = /^(BC-\d+)\.md$/;
 export type Reason = 'NOISE' | 'DEAD' | 'SUPERSEDED';
 export interface Issue {
@@ -45,48 +46,62 @@ const terminal = (issue: Issue) => TERMINAL.has(issue.status);
 
 export async function loadBoard(workspace: string): Promise<Board> {
   if (!isAbsolute(workspace)) throw new Error('workspace must be an absolute path');
-  const dir = join(workspace, 'forge', 'issues');
-  let files: string[] = [];
-  try {
-    files = (await readdir(dir)).filter((file) => file.endsWith('.md')).sort();
-  } catch {
-    files = [];
-  }
-  let claims: string[] = [];
-  try {
-    claims = (await readdir(join(workspace, 'forge', '.claims')))
-      .map((file) => CLAIM.exec(file)?.[1])
-      .filter((id): id is string => Boolean(id));
-  } catch {
-    claims = [];
-  }
+  const dir = await safePath(workspace, 'forge', 'issues');
+  const files = (await readdir(dir)).filter((file) => file.endsWith('.md')).sort();
+  // Working leases remain reservations even when owner liveness looks stale.
+  const claims = [
+    ...new Set((await workingRuns(workspace)).flatMap((run) => (run.issue ? [run.issue] : []))),
+  ].sort();
   let candidates: string[] = [];
   try {
-    candidates = (await readdir(join(workspace, 'forge', '.candidates')))
+    candidates = (await readdir(await safePath(workspace, 'forge', '.candidates')))
       .map((file) => CANDIDATE.exec(file)?.[1])
       .filter((id): id is string => Boolean(id));
-  } catch {
-    candidates = [];
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
   const claimed = new Set(claims);
   const issues: Issue[] = [];
   for (const file of files) {
-    const fm = frontmatter(await readFile(join(dir, file), 'utf8'));
-    const priority = Number.parseInt(field(fm, 'priority'), 10);
-    const id = field(fm, 'id') || file.replace(/\.md$/, '');
+    const raw = await source(workspace, ['forge', 'issues', file]);
+    const doc = document(raw);
+    if (
+      typeof doc.metadata.id !== 'string' ||
+      !ISSUE_ID.test(doc.metadata.id) ||
+      !(file === `${doc.metadata.id}.md` || file.startsWith(`${doc.metadata.id}-`))
+    )
+      throw new Error('Issue metadata identity mismatch');
+    const m = doc.metadata;
+    const id = doc.metadata.id;
+    const priority = m.priority ?? 3;
+    const deps = m.depends_on ?? [];
+    if (
+      !Number.isInteger(priority) ||
+      Number(priority) < 1 ||
+      Number(priority) > 4 ||
+      !Array.isArray(deps) ||
+      !deps.every((dep) => typeof dep === 'string' && ISSUE_ID.test(dep))
+    )
+      throw new Error('Invalid issue priority or dependencies');
+    const optional = (key: string) => {
+      const value = m[key];
+      if (value == null) return null;
+      if (typeof value !== 'string') throw new Error(`Invalid issue ${key}`);
+      return none(value);
+    };
     issues.push({
       id,
-      kind: field(fm, 'kind') || 'task',
-      status: field(fm, 'status') || 'open',
-      priority: Number.isFinite(priority) ? priority : 3,
-      deps: list(fm, 'depends_on'),
-      parent: none(field(fm, 'parent')),
-      workdir: none(field(fm, 'workdir')),
-      mr: none(field(fm, 'mr')),
-      breakdown: none(field(fm, 'breakdown_candidate_id')),
+      kind: optional('kind') ?? 'task',
+      status: optional('status') ?? 'open',
+      priority: Number(priority),
+      deps,
+      parent: optional('parent'),
+      workdir: optional('workdir'),
+      mr: optional('mr'),
+      breakdown: optional('breakdown_candidate_id'),
       claimed: claimed.has(id),
-      title: field(fm, 'title'),
-      body: fm.body,
+      title: optional('title') ?? '',
+      body: doc.body,
       file,
     });
   }
@@ -197,12 +212,12 @@ export function planBoard(board: Board) {
       });
   }
   const reports = closes.flatMap((close) =>
-    close.errors.map((error) => `raw edit required for ${close.issue}: ${error}`),
+    close.errors.map((error) => `operator action required for ${close.issue}: ${error}`),
   );
   for (const issue of board.issues)
     if (!terminal(issue) && issue.breakdown && !board.candidates.includes(issue.breakdown))
       reports.push(
-        `raw edit required for ${issue.id}: dangling breakdown_candidate_id ${issue.breakdown}`,
+        `operator action required for ${issue.id}: dangling breakdown_candidate_id ${issue.breakdown}`,
       );
   const closedAfter = new Set([
     ...board.issues.filter((issue) => issue.status === 'closed').map((issue) => issue.id),
@@ -220,7 +235,9 @@ export function planBoard(board: Board) {
     closes,
     actions,
     reports,
-    saturation: { before: board.ready.length, after },
+    saturation: { before: board.ready.length, after: board.ready.length },
+    closureCapability: 'unavailable: current Dexter has no guarded leaf-close CLI operation',
+    potentialReadyAfterClosures: after,
   };
 }
 
@@ -239,33 +256,6 @@ function closeErrors(board: Board, issueId: string, reason: Reason, successor?: 
   )
     errors.push(`unknown or terminal successor: ${successor}`);
   return errors;
-}
-
-export async function applyClose(
-  workspace: string,
-  board: Board,
-  issueId: string,
-  reason: Reason,
-  successor?: string,
-) {
-  const errors = closeErrors(board, issueId, reason, successor);
-  if (errors.length) throw new Error(errors.join('; '));
-  const issue = board.issues.find((entry) => entry.id === issueId)!;
-  if (terminal(issue)) return { issue: issueId, changed: false, reason };
-  const path = join(workspace, 'forge', 'issues', issue.file);
-  let content = await readFile(path, 'utf8');
-  for (const [key, value] of [
-    ['status', 'closed'],
-    ['workdir', 'null'],
-    ['mr', 'null'],
-    ['assignee', 'null'],
-    ['breakdown_candidate_id', 'null'],
-  ])
-    content = content.replace(new RegExp(`^${key}:.*$`, 'm'), `${key}: ${value}`);
-  const marker = `<!-- deus-close: ${reason} -->`;
-  if (!content.includes(marker)) content = `${content.replace(/\s*$/, '')}\n\n${marker}\n`;
-  await writeFile(path, content, 'utf8');
-  return { issue: issueId, changed: true, reason };
 }
 
 export function registerBoardTools(pi: ToolRegistrar) {
@@ -327,7 +317,12 @@ export function registerBoardTools(pi: ToolRegistrar) {
             ...entry,
             actions: plan.actions.filter((action) => action.parameters.issue === entry.id),
             closure: plan.closes.find((close) => close.issue === entry.id) ?? null,
-            reports: plan.reports.filter((report) => report.includes(entry.id)),
+            reports: [
+              ...plan.reports.filter((report) => report.includes(entry.id)),
+              ...(plan.closes.some((close) => close.issue === entry.id)
+                ? [plan.closureCapability]
+                : []),
+            ],
           })),
           p.cursor,
           p.limit,
@@ -339,7 +334,7 @@ export function registerBoardTools(pi: ToolRegistrar) {
     name: 'deus_dexter_issue_close',
     label: 'Close noise issue',
     description:
-      'The sole approval-gated raw edit: close one leaf NOISE/DEAD issue with no claim, workdir, merge request, or open children. Requires confirm=true and a verified dexter-signed profile.',
+      'Check an approved leaf closure request. Current Dexter has no guarded leaf-close CLI operation: returns rejected with the capability gap and never edits Forge. reject-issue is not equivalent (it rejects an entire subtree).',
     parameters: Type.Object({
       workspace,
       issue: Type.String(),
@@ -377,19 +372,14 @@ export function registerBoardTools(pi: ToolRegistrar) {
         );
       if (errors.length)
         return output(mutationReceipt('rejected', { ...receipt, reasons: errors }));
-      try {
-        const result = await applyClose(snapshot.workspace, snapshot, p.issue, p.reason, successor);
-        return output(mutationReceipt('completed', { ...receipt, changed: result.changed }));
-      } catch {
-        return output(
-          mutationReceipt('outcome_unknown', {
-            ...receipt,
-            reasons: [
-              'Closure did not complete reliably; inspect live state and do not retry automatically',
-            ],
-          }),
-        );
-      }
+      return output(
+        mutationReceipt('rejected', {
+          ...receipt,
+          reasons: [
+            'Current Dexter has no guarded leaf-close CLI operation; workspace unchanged. reject-issue rejects a subtree and is not a closure substitute.',
+          ],
+        }),
+      );
     },
   });
 }

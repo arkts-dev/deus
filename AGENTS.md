@@ -4,7 +4,7 @@ Deus 0.3 is a TypeScript Pi package. Dexter owns engineering design, decompositi
 
 ## Layout
 
-- `src/`: extensions, verified executable/argv adapter, local readers, research, and evidence guards.
+- `src/`: extensions, verified executable/argv adapter, local readers and evidence guards.
 - `prompts/kernel.md`: minimal system prompt.
 - `skills/`: lazy-discovered Pi skills; never copy into managed repositories.
 - `.agents/skills/`: contributor workflows.
@@ -21,7 +21,7 @@ Every replaced contract is a hard cutover. Remove superseded code, tests, fixtur
 
 ## Runtime boundaries
 
-Dexter mutations use `deus_dexter_*` tools exclusively. CLI calls use executable plus exact argv, never shell interpolation. `DEXTER_BIN` alone overrides the default `dexter` lookup on `PATH`. Verify a trusted commit signature against `DEUS_DEXTER_TRUSTED_FINGERPRINTS` before every mutation, including direct issue closure. Unknown profile blocks all workspace mutations, not reads. Workspace arguments must be absolute; the private CLI adapter supplies `--dir`. Never automatically retry failed mutations. Nonzero exits, errors, timeouts, and interruptions have uncertain outcomes: inspect live state before another decision. Worker exits, board statuses, and model claims do not prove product completion; verify artifacts against accepted criteria.
+Dexter mutations use `deus_dexter_*` tools exclusively. CLI calls use executable plus exact argv, never shell interpolation. `DEXTER_BIN` alone overrides the default `dexter` lookup on `PATH`. Verify a trusted commit signature against `DEUS_DEXTER_TRUSTED_FINGERPRINTS` before dispatching every mutation. Unknown profile blocks all workspace mutations, not reads. Workspace arguments must be absolute; the private CLI adapter supplies `--dir`. Never automatically retry failed mutations. Nonzero exits, errors, timeouts, and interruptions have uncertain outcomes: inspect live state before another decision. Worker exits, board statuses, and model claims do not prove product completion; verify artifacts against accepted criteria.
 
 Read-only operations are allowed as usual, including Forge records, transcripts, and ID discovery. Prefer artifact readers; ordinary read-only tools remain available when insufficient. Never mutate Dexter state outside Deus APIs. Unavailable mutation: report the gap; leave state unchanged.
 
@@ -29,11 +29,11 @@ Read-only operations are allowed as usual, including Forge records, transcripts,
 
 The recognized profile is `dexter-signed`. Trust only verified commits from the native checkout; independently verify the signer's key before changing fingerprints. Expose six typed CLI mutations and four sectioned, cursor-based readers, never generic execution/output retrieval. The current CLI lacks structured pagination and run reads: readers use persisted local Forge files. Optional MCP shares handlers; no discovery service. Cursors are path-free, section-bound, reload-expiring, and content-sensitive; content is bounded and redacted before paging. Shared mutation receipts distinguish rejected, completed, and outcome_unknown; diagnostics are bounded without killing commands.
 
-`deus_dexter_issues_live` and `deus_dexter_issues_plan` read Forge directly; planning never mutates. `deus_dexter_issue_close` permits one approved, trusted, guarded closure. Migrate these adapters separately when equivalent CLI capabilities exist. Initialization, drain execution, free-form directives, request answers/denials, config, and dexter-web are outside this integration.
+`deus_dexter_issues_live` and `deus_dexter_issues_plan` read Forge directly; planning never mutates. `deus_dexter_issue_close` reports an unavailable guarded leaf-close CLI capability and never edits Forge. Working run leases and notifications are read from scheduler.sqlite3; do not consult obsolete .claims, bot files or bus files. Process-local reservations and throttling are not observable. Migrate these adapters separately when equivalent CLI capabilities exist. Initialization, drain execution, free-form directives, request answers/denials, config, and dexter-web are outside this integration.
 
 MCP: absolute existing workspace; schema/path validation, serialization, cancellation/disconnect; never replay. See `docs/mcp.md`.
 
-Web research is foreground and isolated from projects and Dexter. Preserve DNS/redirect guards, bounded requests, source receipts, and separate evidence, inference, and gaps. Local research uses host filesystem access. Unless explicitly requested elsewhere, skills write only tracked Markdown under `.deus/design/`, `.deus/research/`, and `.deus/handoffs/`, with required YAML and no credentials, absolute paths, live logs, or private state.
+Web research uses the host agent's public web tools, not a Deus API or nested model session. Never send private project text to public sources; separate evidence, inference, and gaps. Local research uses host filesystem access. Unless explicitly requested elsewhere, skills write only tracked Markdown under `.deus/design/`, `.deus/research/`, and `.deus/handoffs/`, with required YAML and no credentials, absolute paths, live logs, or private state.
 
 ## Provenance
 

@@ -5,6 +5,8 @@ import { SignedCursor } from './cursor.js';
 import { parse, stringify } from 'yaml';
 import { digest, redact } from './process.js';
 import { bytePage } from './receipt.js';
+export const RUN_ID = /^RUN-[A-Za-z0-9]+(?:[_.-][A-Za-z0-9]+)*$/;
+export const ISSUE_ID = /^ISSUE-(?!0+$)[0-9]{4,}$/;
 export const SECTIONS = {
     issue: ['summary', 'metadata', 'body', 'notes'],
     mr: ['summary', 'metadata', 'body', 'reviews', 'notes'],
@@ -81,10 +83,10 @@ export class ArtifactReader {
         const validId = kind === 'wiki'
             ? /^[a-z0-9][a-z0-9-]*$/
             : kind === 'run'
-                ? /^RUN-[a-z0-9]+-\d+$/
+                ? RUN_ID
                 : kind === 'issue'
-                    ? /^ISSUE-\d+$/
-                    : /^MR-\d+$/;
+                    ? ISSUE_ID
+                    : /^MR-(?!0+$)[0-9]{4,}$/;
         if (!validId.test(p.id))
             throw new Error('Invalid artifact ID');
         if (!isAbsolute(p.workspace))

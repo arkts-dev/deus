@@ -57,11 +57,8 @@ export declare function planBoard(board: Board): {
         before: number;
         after: number;
     };
+    closureCapability: string;
+    potentialReadyAfterClosures: number;
 };
-export declare function applyClose(workspace: string, board: Board, issueId: string, reason: Reason, successor?: string): Promise<{
-    issue: string;
-    changed: boolean;
-    reason: Reason;
-}>;
 export declare function registerBoardTools(pi: ToolRegistrar): void;
 export default function board(pi: ExtensionAPI): void;
