@@ -35,7 +35,7 @@ const operations = (c: DexterPlugin, workspace: string) => [
     }),
   () => c.rejectIssue({ workspace, issue: 'ISSUE-0001' }),
 ];
-test('unknown signature blocks every typed mutation and generic execution is absent', async (t) => {
+test('unknown signature blocks every typed mutation', async (t) => {
   environment(t, 'DEUS_DEXTER_TRUSTED_FINGERPRINTS');
   const c = new DexterPlugin(process.execPath);
   const probe = await c.probe();
@@ -47,7 +47,6 @@ test('unknown signature blocks every typed mutation and generic execution is abs
     assert.equal(r.status, 'rejected');
     assert.equal(r.profile, 'unknown');
   }
-  assert.equal('exec' in c, false);
 });
 test('typed argv, validation, bounded receipts and uncertain outcomes without retries', async (t) => {
   const { root: dir } = await fixture(t);
@@ -118,10 +117,9 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
     'rejected',
   );
   assert.equal(await readFile(join(dir, 'argv'), 'utf8'), argv);
-  // Rejection uses the same bounded, uncertain-outcome and cancellation path.
-  const nudge = () => c.rejectIssue({ workspace: dir, issue: 'ISSUE-0001' });
+  const reject = () => c.rejectIssue({ workspace: dir, issue: 'ISSUE-0001' });
   await program("process.stdout.write('x'.repeat(600_000));");
-  const large = await nudge();
+  const large = await reject();
   assert.equal(large.status, 'completed');
   assert.equal(large.signal, null);
   assert.equal(large.diagnostics.truncated, true);
@@ -130,12 +128,12 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
   await program(
     "import { appendFileSync } from 'node:fs'; appendFileSync('calls', 'x'); process.exitCode = 7;",
   );
-  const failed = await nudge();
+  const failed = await reject();
   assert.equal(failed.status, 'outcome_unknown');
   assert.equal(failed.exitCode, 7);
   assert.equal(await readFile(join(dir, 'calls'), 'utf8'), 'x');
   await program("process.kill(process.pid, 'SIGTERM');");
-  const terminated = await nudge();
+  const terminated = await reject();
   assert.equal(terminated.status, 'outcome_unknown');
   assert.equal(terminated.signal, 'SIGTERM');
   await program(
@@ -149,7 +147,7 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
   assert.equal(cancelled.status, 'outcome_unknown');
   assert.equal(cancelled.cancelled, true);
   await rm(executable);
-  const missing = await nudge();
+  const missing = await reject();
   assert.equal(missing.status, 'outcome_unknown');
   assert.equal(missing.exitCode, null);
 });

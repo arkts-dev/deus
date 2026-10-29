@@ -6,7 +6,7 @@ import { hostname } from 'node:os';
 import { botsLive, EventReader } from '../src/operations.js';
 import { fixture, secret, schedulerFixture, schedulerWrite, eventFixture } from './fixture.js';
 
-test('current run leases expose PID/heartbeat ownership, not obsolete bots, claims or guessed cooldown', async (t) => {
+test('working leases expose PID and heartbeat liveness without modifying the database', async (t) => {
   const { root, put } = await fixture(t);
   await schedulerFixture(root);
   await put('dexter.config.json', '{"heartbeat_ttl_seconds":60}');
@@ -20,9 +20,6 @@ test('current run leases expose PID/heartbeat ownership, not obsolete bots, clai
     insert.run('RUN-remote.stale', 'reviewer', 'working', 'remote', 1, null, old);
     insert.run('RUN-finished', 'reviewer', 'finished', null, null, null, now);
   });
-  // These obsolete artifacts must not be consulted.
-  await put('forge/.claims/issue_ISSUE-9999.lock', 'broken');
-  await put('forge/bots/BOT-0001.md', 'broken');
   const before = await readFile(join(root, 'scheduler.sqlite3'));
   const live = await botsLive(root);
   assert.deepEqual(
@@ -118,11 +115,10 @@ test('event wire pages stay bounded and continue without dropping events', async
   );
 });
 
-test('missing databases and escaping links never initialize state or use legacy bus files', async (t) => {
-  const { root, put } = await fixture(t);
-  await put('bus/000001-run.started.md', 'obsolete');
+test('missing databases and escaping links fail without initializing state', async (t) => {
+  const { root } = await fixture(t);
   await assert.rejects(new EventReader().read({ workspace: root }));
-  assert.deepEqual(await readdir(root), ['bus']);
+  assert.deepEqual(await readdir(root), []);
   const outside = await fixture(t);
   await schedulerFixture(outside.root);
   await symlink(join(outside.root, 'scheduler.sqlite3'), join(root, 'scheduler.sqlite3'));

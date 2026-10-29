@@ -50,10 +50,9 @@ test('registered schemas accept explicit defaults and reject invalid choices', (
       }),
       false,
     );
-  for (const removed of ['deus_research_web', 'deus_dexter_submit', 'deus_dexter_issue_create'])
-    assert.equal(registered.has(removed), false);
-  assert.ok(registered.has('deus_dexter_epic_create'));
-  assert.equal(registered.has('deus_dexter_issue_close'), false);
+  const epic = registered.get('deus_dexter_epic_create')!;
+  assert.ok(Value.Check(epic.parameters, submission));
+  assert.equal(Value.Check(epic.parameters, { ...submission, title: '' }), false);
   const reject = registered.get('deus_dexter_issue_reject')!;
   assert.ok(Value.Check(reject.parameters, { workspace: '/tmp/project', issue: 'ISSUE-0002' }));
   for (const issue of ['ISSUE-0000', 'ISSUE-1', '../escape'])

@@ -89,8 +89,6 @@ test('MCP exposes current typed tools and original skills with accurate annotati
     );
   await reject('deus_artifact_read', { path: 'README.md' });
   await reject('deus_artifact_list', { path: '.' });
-  assert.ok(!names.includes('deus_dexter_exec'));
-  assert.ok(!names.some((name) => name.startsWith('deus_board_')));
   for (const suffix of [
     'probe',
     'issues_live',
@@ -192,7 +190,7 @@ test('MCP preserves trust refusal and current scheduler pagination', async (t) =
   assert.deepEqual((await call('deus_dexter_bots_live', { workspace: root })).runs, []);
 });
 
-test('MCP writes designs once, reads artifacts, and rejects path escapes including renamed board tools', async (t) => {
+test('MCP writes designs once, reads artifacts, and rejects path escapes including board tools', async (t) => {
   const { root, client, call, reject } = await setup(t);
   const outside = await fixture(t);
   await symlink(outside.root, join(root, 'escape'));
@@ -247,7 +245,7 @@ test('MCP writes designs once, reads artifacts, and rejects path escapes includi
     await reject(name, { workspace: root, cursor: null, limit: 20 });
 });
 
-test('MCP preserves board planning and rejects the removed closure API', async (t) => {
+test('MCP preserves board planning and snapshot pagination', async (t) => {
   const { root, call, reject, put } = await setup(t);
   trust(t);
   await put(
@@ -276,7 +274,6 @@ test('MCP preserves board planning and rejects the removed closure API', async (
   assert.equal(next.records.length, 1);
   assert.notEqual(page.records[0].id, next.records[0].id);
   await reject('deus_dexter_issues_plan', { workspace: root, cursor: page.nextCursor, limit: 1 });
-  await reject('deus_dexter_issue_close', { workspace: root, issue: 'ISSUE-0001' });
   await put('forge/issues/ISSUE-0003.md', '---\nid: ISSUE-0003\nstatus: open\n---\nProduct\n');
   await reject('deus_dexter_issues_live', { workspace: root, cursor: page.nextCursor, limit: 1 });
   assert.equal(

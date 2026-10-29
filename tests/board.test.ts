@@ -99,18 +99,19 @@ test('classification is PRODUCT-first, then NOISE or DEAD', async () => {
   }
 });
 
-test('plan classifies noise without proposing rejection or projecting satisfied dependencies', async () => {
+test('plan prioritizes ready product work', async () => {
   const root = await fixture();
   try {
     const board = await loadBoard(root);
     const plan = planBoard(board);
     assert.deepEqual(plan.saturation, { before: 3, after: 3 });
-    assert.equal('closes' in plan, false);
-    assert.equal(
-      plan.actions.some((action) => action.tool === 'deus_dexter_issue_reject'),
-      false,
-    );
-    assert.ok(plan.actions.every((action) => action.tool.startsWith('deus_dexter_issue_')));
+    assert.deepEqual(plan.actions, [
+      {
+        tool: 'deus_dexter_issue_reprioritize',
+        parameters: { workspace: root, issue: 'ISSUE-0001', priority: 1 },
+        reason: 'PRODUCT ready',
+      },
+    ]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
