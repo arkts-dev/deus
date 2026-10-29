@@ -1,35 +1,19 @@
 export declare function botsLive(workspace: string): Promise<{
     observedAt: string;
-    bots: {
-        id: unknown;
-        role: unknown;
-        worker: string;
-        host: string;
-        pid: unknown;
-        issue: unknown;
-        mr: unknown;
-        run: unknown;
-        lastHeartbeat: unknown;
+    runs: {
         heartbeatAgeSeconds: number;
         livenessBasis: string;
         active: boolean;
-        claims: string[];
+        id: string;
+        role: string;
+        status: string;
+        host: string | null;
+        pid: number | null;
+        issue: string | null;
+        lastHeartbeat: string;
     }[];
-    claims: {
-        stale: boolean;
-        resource: string;
-        worker: string;
-        host: string;
-        pid: number;
-        ts: string;
-        witness: string | null;
-    }[];
-    cooldown: {
-        basis: string;
-        configured: number;
-        policyLimit: number;
-        endsAt: string | null;
-    };
+    reservations: string;
+    throttling: string;
 }>;
 export declare class EventReader {
     private readonly cursor;

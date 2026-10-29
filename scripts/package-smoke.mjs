@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { DatabaseSync } from 'node:sqlite';
 import { runProcess, succeeded } from '../dist/process.js';
 
 const root = await realpath(await mkdtemp(join(tmpdir(), 'deus-package-')));
@@ -31,7 +32,7 @@ try {
     'dist/operations.js',
     'dist/mcp.js',
     'dist/mcp-cli.js',
-    'dist/research.js',
+    'dist/scheduler.js',
     'prompts/kernel.md',
     'skills.lock.json',
     'LICENSE',
@@ -47,17 +48,12 @@ try {
     ].map((name) => `skills/${name}/SKILL.md`),
   ])
     assert.ok(paths.includes(path), path);
-  const legacyProductName = ['arke', 'str'].join('');
-  assert.ok(!paths.includes(`dist/${legacyProductName}.js`));
-  assert.ok(!paths.some((path) => path.startsWith(`skills/${legacyProductName}-control/`)));
-  assert.ok(
-    !paths.some((path) =>
-      /(^docs\/|^examples\/|avatar|bootstrap|dist\/cli\.|dist\/manager\.|dist\/workflow|^src\/)/.test(
-        path,
-      ),
-    ),
-    paths.join('\n'),
-  );
+  for (const path of paths)
+    assert.match(
+      path,
+      /^(dist\/[^/]+\.(js|d\.ts)|skills\/[^/]+\/SKILL\.md|prompts\/kernel\.md|skills\.lock\.json|package\.json|README\.md|LICENSE|NOTICE|THIRD_PARTY_NOTICES\.md)$/,
+      path,
+    );
   const installed = await runProcess(
     'npm',
     ['install', '--prefix', join(root, 'install'), '--ignore-scripts', join(root, info.filename)],
@@ -76,7 +72,7 @@ try {
   );
   assert.ok(kernel.includes('Never retry failed mutations automatically'));
   const control = await readFile(join(packageDir, 'skills/dexter-control/SKILL.md'), 'utf8');
-  for (const name of ['issues_live', 'issues_plan', 'issue_close'])
+  for (const name of ['issues_live', 'issues_plan', 'issue_reject'])
     assert.ok(control.includes(`deus_dexter_${name}`));
   assert.ok(control.includes('Read-only operations are allowed as usual'));
   assert.ok(control.includes('report the gap and leave Dexter state unchanged'));
@@ -117,11 +113,11 @@ try {
     'deus_design_write',
     'deus_dexter_architecture_accept',
     'deus_dexter_bots_live',
+    'deus_dexter_epic_create',
     'deus_dexter_events_read',
-    'deus_dexter_issue_close',
-    'deus_dexter_issue_create',
     'deus_dexter_issue_nudge',
     'deus_dexter_issue_read',
+    'deus_dexter_issue_reject',
     'deus_dexter_issue_relink',
     'deus_dexter_issue_reprioritize',
     'deus_dexter_issues_live',
@@ -130,9 +126,8 @@ try {
     'deus_dexter_mr_read',
     'deus_dexter_probe',
     'deus_dexter_run_read',
-    'deus_dexter_submit',
+    'deus_dexter_task_create',
     'deus_dexter_wiki_read',
-    'deus_research_web',
   ]);
   for (const tool of tools)
     assert.deepEqual(
@@ -142,7 +137,7 @@ try {
     );
   const { Value } = await import('typebox/value');
   assert.ok(
-    Value.Check(tools.find((tool) => tool.name === 'deus_dexter_issue_create').parameters, {
+    Value.Check(tools.find((tool) => tool.name === 'deus_dexter_task_create').parameters, {
       workspace: root,
       title: 'Standalone task',
       body: 'Contract',
@@ -151,7 +146,6 @@ try {
       priority: 3,
     }),
   );
-  assert.ok(!tools.some((tool) => tool.name.startsWith(`deus_${legacyProductName}_`)));
   assert.deepEqual(hooks, ['before_agent_start']);
   const fake = join(root, 'dexter-fake.mjs');
   const callsPath = join(root, 'dexter-calls.jsonl');
@@ -162,11 +156,8 @@ try {
   await chmod(fake, 0o755);
   const priorDexter = process.env.DEXTER_BIN;
   const priorPath = process.env.PATH;
-  const legacyEnvName = ['ARKESTR', 'BIN'].join('_');
-  const priorLegacy = process.env[legacyEnvName];
   const priorTrusted = process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
   process.env.DEXTER_BIN = fake;
-  process.env[legacyEnvName] = join(root, 'must-not-be-used');
   delete process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
   const invoke = async (name, parameters) => {
     const definition = tools.find((tool) => tool.name === name);
@@ -235,15 +226,12 @@ tools/gate-manifest.sh
     assert.equal(blocked.status, 'rejected');
     assert.equal(blocked.profile, 'unknown');
     assert.equal(blocked.exitCode, null);
-    const closure = await invoke('deus_dexter_issue_close', {
+    const rejection = await invoke('deus_dexter_issue_reject', {
       workspace: root,
       issue: 'ISSUE-0001',
-      reason: 'NOISE',
-      successor: null,
-      confirm: true,
     });
-    assert.equal(closure.status, 'rejected');
-    assert.equal(closure.profile, 'unknown');
+    assert.equal(rejection.status, 'rejected');
+    assert.equal(rejection.profile, 'unknown');
     await mkdir(join(root, 'forge/wiki'), { recursive: true });
     await writeFile(
       join(root, 'forge/wiki/sample.md'),
@@ -267,17 +255,23 @@ tools/gate-manifest.sh
     });
     assert.equal(continuation.revision, page.revision);
     assert.equal(JSON.stringify(page).includes(root), false);
-    await writeFile(join(root, 'dexter.config.json'), '{}');
-    for (const dir of ['forge/bots', 'forge/.claims', 'bus'])
-      await mkdir(join(root, dir), { recursive: true });
+    await writeFile(join(root, 'dexter.config.json'), '{"heartbeat_ttl_seconds":60}');
+    const db = new DatabaseSync(join(root, 'scheduler.sqlite3'));
+    try {
+      db.exec(`CREATE TABLE runs (id TEXT, role TEXT, status TEXT, host TEXT, pid INTEGER, issue TEXT, last_heartbeat TEXT);
+        CREATE TABLE notification_events (seq TEXT PRIMARY KEY, seq_length INTEGER, document TEXT);`);
+      for (const seq of [1, 2])
+        db.prepare('INSERT INTO notification_events VALUES (?, ?, ?)').run(
+          String(seq),
+          1,
+          `---\nseq: ${seq}\nts: 2026-01-01T00:00:00Z\ntype: run.started\n---\n`,
+        );
+    } finally {
+      db.close();
+    }
     const ownership = await invoke('deus_dexter_bots_live', { workspace: root });
-    assert.deepEqual(ownership.bots, []);
-    assert.deepEqual(ownership.claims, []);
-    for (const seq of [1, 2])
-      await writeFile(
-        join(root, `bus/00000${seq}-run.started.md`),
-        `---\nseq: ${seq}\nts: 2026-01-01T00:00:00Z\ntype: run.started\n---\n`,
-      );
+    assert.deepEqual(ownership.runs, []);
+    assert.equal(ownership.reservations, 'not_observable');
     const recent = await invoke('deus_dexter_events_read', {
       workspace: root,
       cursor: null,
@@ -301,7 +295,7 @@ tools/gate-manifest.sh
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
-    assert.equal(calls.filter((argv) => argv[0] === 'nudge-issue').length, 0);
+    assert.deepEqual(calls, []);
 
     delete process.env.DEXTER_BIN;
     if (process.env.DEUS_TEST_NO_CLI === '1') {
@@ -327,26 +321,8 @@ tools/gate-manifest.sh
     else process.env.PATH = priorPath;
     if (priorDexter === undefined) delete process.env.DEXTER_BIN;
     else process.env.DEXTER_BIN = priorDexter;
-    if (priorLegacy === undefined) delete process.env[legacyEnvName];
-    else process.env[legacyEnvName] = priorLegacy;
     if (priorTrusted === undefined) delete process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS;
     else process.env.DEUS_DEXTER_TRUSTED_FINGERPRINTS = priorTrusted;
-  }
-  const installedSdk = await import(
-    pathToFileURL(join(root, 'install/node_modules/@earendil-works/pi-coding-agent/dist/index.js'))
-      .href
-  );
-  const originalCreate = installedSdk.ModelRuntime.create;
-  installedSdk.ModelRuntime.create = async () => ({ getAvailableSnapshot: () => [] });
-  try {
-    const web = await invoke('deus_research_web', {
-      question: 'Public offline smoke',
-      provider: 'fetch',
-    });
-    assert.deepEqual(web, { status: 'unavailable', reason: 'No model configured' });
-    assert.ok(!('jobId' in web));
-  } finally {
-    installedSdk.ModelRuntime.create = originalCreate;
   }
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
   const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
@@ -421,12 +397,11 @@ tools/gate-manifest.sh
           'designer product constraints accepted and confirmation guidance shipped',
           'DEXTER_BIN precedence',
           process.env.DEUS_TEST_NO_CLI === '1'
-            ? 'legacy override ignored; default dexter name resolves the PATH fixture'
-            : 'legacy override ignored; native dexter discovered on PATH',
-          'unknown-profile typed mutation and direct closure blocked',
+            ? 'default dexter name resolves the PATH fixture'
+            : 'native dexter discovered on PATH',
+          'unknown-profile typed mutations including subtree rejection blocked',
           'bounded reader continuation without CLI execution',
-          'unknown-profile bot ownership and event continuation without CLI execution',
-          'foreground no-model web',
+          'current SQLite ownership and event continuation without CLI execution',
           'installed MCP executable, current tool discovery, workspace binding, skills and typed trust refusal',
         ],
       },

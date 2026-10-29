@@ -36,6 +36,7 @@
     "prepack": "npm run build",
     "skills:verify": "node scripts/sync-skills.mjs --verify",
     "test:package": "npm run build && node scripts/package-smoke.mjs",
+    "test:current-dexter": "npm run build && node scripts/current-dexter.mjs",
     "format": "prettier --write src tests scripts package.json tsconfig.json",
     "format:check": "prettier --check src tests scripts package.json tsconfig.json"
   },
@@ -51,7 +52,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
-    "pi-web-access": "0.29.0",
     "yaml": "2.9.0"
   },
   "peerDependencies": {

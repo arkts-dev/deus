@@ -1,7 +1,7 @@
 /** Read-only run cohorts and separately scoped workspace review activity. No delivery attribution. */
 import { readdir } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
-import { document, safePath, source } from './artifacts.js';
+import { document, safePath, source, RUN_ID } from './artifacts.js';
 import { Type } from 'typebox';
 import { jsonResult, redactedJson } from './process.js';
 import { readOnly, type ToolRegistrar } from './tool-registry.js';
@@ -56,7 +56,7 @@ async function* observations(
       throw new Error('Invalid metrics metadata; measurement unavailable');
     }
   };
-  for (const run of (await files(['forge', 'runs'])).filter((n) => /^RUN-[a-z0-9]+-\d+$/.test(n)))
+  for (const run of (await files(['forge', 'runs'])).filter((n) => RUN_ID.test(n)))
     yield { kind: 'run', metadata: await record(['forge', 'runs', run, 'run.json'], run, 'run') };
   for (const mr of (await files(['forge', 'reviews'])).filter((n) => /^MR-\d+$/.test(n)))
     for (const file of (await files(['forge', 'reviews', mr])).filter((n) => /^\d+\.md$/.test(n)))
@@ -76,7 +76,7 @@ const cohort = () => ({
 type Cohort = ReturnType<typeof cohort>;
 function accumulate(b: Cohort, r: Record<string, unknown>, began: number, observed: number) {
   b.starts++;
-  const completed = timestamp(r.completed_at);
+  const completed = timestamp(r.updated_at);
   if (
     r.status === 'running' ||
     !Number.isFinite(completed) ||
@@ -88,15 +88,14 @@ function accumulate(b: Cohort, r: Record<string, unknown>, began: number, observ
   }
   if (r.status === 'done') b.done++;
   else b.failed++;
-  if (r.timed_out === true) b.timedOut++;
-  if (typeof r.duration_ms === 'number') {
-    b.durations.push(r.duration_ms);
-    b.durationMs.samples++;
-    b.durationMs.sum += r.duration_ms;
-    if (r.timed_out === true) {
-      b.timeoutDurationMs.samples++;
-      b.timeoutDurationMs.sum += r.duration_ms;
-    }
+  if (r.failure_reason === 'timed_out') b.timedOut++;
+  const duration = completed - began;
+  b.durations.push(duration);
+  b.durationMs.samples++;
+  b.durationMs.sum += duration;
+  if (r.failure_reason === 'timed_out') {
+    b.timeoutDurationMs.samples++;
+    b.timeoutDurationMs.sum += duration;
   }
   if (typeof r.prompt_tokens === 'number') {
     b.promptTokens.samples++;
@@ -147,9 +146,14 @@ export async function metrics(p: MetricsRequest, signal?: AbortSignal, observed 
       kind === 'run' &&
       (typeof r.role !== 'string' ||
         !r.role ||
-        !['running', 'done', 'failed'].includes(String(r.status)))
+        !['running', 'done', 'failed', 'cancelled'].includes(String(r.status)))
     )
       throw new Error('Invalid run role or status; measurement unavailable');
+    if (
+      kind === 'run' &&
+      (!Number.isFinite(timestamp(r.updated_at)) || timestamp(r.updated_at) < time)
+    )
+      throw new Error('Invalid run updated_at; measurement unavailable');
     if (kind === 'review' && (typeof r.verdict !== 'string' || !r.verdict))
       throw new Error('Invalid review verdict; measurement unavailable');
     const b = bucket(time);
@@ -159,7 +163,7 @@ export async function metrics(p: MetricsRequest, signal?: AbortSignal, observed 
       b.reviewVerdicts[verdict] = (b.reviewVerdicts[verdict] ?? 0) + 1;
     } else {
       const role = r.role as string;
-      for (const field of ['duration_ms', 'prompt_tokens'])
+      for (const field of ['prompt_tokens'])
         if (r[field] != null && !nonnegative(r[field]))
           throw new Error(`Invalid ${field}; measurement unavailable`);
       accumulate(b.total, r, time, observed);
@@ -202,7 +206,7 @@ export function registerMetricsTool(registry: ToolRegistrar) {
     label: 'Run and review metrics',
     annotations: readOnly,
     description:
-      'Daily run-start cohorts: totals and exact observed-role breakdowns. Separate workspace review-created counts. Fixed UTC offset (180 = +03:00), no DST; until exclusive, max seven days/8 KiB. Terminal outcomes use collection.startedAt cutoff, including completion after until. dayClosed means calendar day ended, not immutable data. Collection is nontransactional. Sampled recorded durations/prompt counters are not CPU/context/billing. No delivery attribution, liveness or acceptance.',
+      'Daily run-start cohorts: totals and exact observed-role breakdowns. Separate workspace review-created counts. Fixed UTC offset (180 = +03:00), no DST; until exclusive, max seven days/8 KiB. Terminal outcomes use collection.startedAt cutoff, including completion after until. dayClosed means calendar day ended, not immutable data. Collection is nontransactional. Terminal wall durations derive from updated_at minus started_at; sampled prompt counters are not CPU/context/billing. No delivery attribution, liveness or acceptance.',
     parameters: Type.Object(
       {
         workspace: Type.String(),

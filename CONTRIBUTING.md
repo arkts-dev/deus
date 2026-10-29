@@ -1,6 +1,6 @@
 # Contributing to Deus
 
-Thank you for helping improve Deus. Please open an issue before making a large behavior or API change so its product contract and acceptance criteria are clear. Pull requests should explain the user-visible change, relevant safety boundaries, and the checks you ran. Keep code, tests, and documentation in English. Do not include credentials, private workspace data, or logs containing sensitive material.
+Open an issue before large behavior/API changes, defining scope and acceptance. PRs explain user-visible changes, safety boundaries, and checks. Use English; exclude credentials, private workspace data, and sensitive logs.
 
 ## Local development
 
@@ -16,7 +16,9 @@ npm run build
 git diff --exit-code -- dist
 ```
 
-The compiled `dist/` directory is committed because Pi installs this package directly from Git. Rebuild and include its changes with any source edit. The signature-verifying Dexter bridge accepts only a trusted executable; do not add an alternate command route or guess a new CLI mapping from names alone.
+Commit rebuilt `dist/`: Pi installs directly from Git. Accept only trusted Dexter executables; verify argv against the real parser, never infer mappings or add alternate execution routes.
+
+Build current Dexter (Node 26.11.1), then run `npm run test:current-dexter -- /path/to/dexter`: seven parser-only argv checks, no project mutations. Deus requires Node ≥22.19.
 
 The live signature test is skipped on fork PRs because the compatible CLI is private. Maintainers run `npm run test:package` with `DEUS_DEXTER_TRUSTED_FINGERPRINTS` set to verify actual signature evidence. The package smoke uses a local fixture and does not claim to validate a real CLI.
 

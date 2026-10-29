@@ -4,9 +4,6 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runProcess } from '../src/process.js';
-import { fetchPublic, publicAddress } from '../src/web.js';
-import { researchWeb, searchWeb, webSearchProvider } from '../src/research.js';
-import type { ModelRuntime } from '@earendil-works/pi-coding-agent';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
 
@@ -19,29 +16,6 @@ test('an explicit unlimited process deadline lets a delayed command finish', asy
   assert.equal(result.timedOut, false);
   assert.equal(result.exitCode, 0);
   assert.match(result.stdout, /done/);
-});
-
-test('public web guards and provider configuration reject unsafe inputs', async () => {
-  assert.equal(publicAddress('127.0.0.1'), false);
-  assert.equal(publicAddress('10.0.0.2'), false);
-  assert.equal(publicAddress('8.8.8.8'), true);
-  assert.throws(() => webSearchProvider({ searchProvider: 'exa' }), /not configured/);
-  await assert.rejects(searchWeb('', { searchProvider: 'fetch' }), /Invalid search question/);
-  await assert.rejects(fetchPublic('http://127.0.0.1/private'), /public|private|address|host/i);
-});
-
-test('web research is a bounded foreground call and reports no model as unavailable', async () => {
-  const runtime = { getAvailableSnapshot: () => [] } as unknown as ModelRuntime;
-  const report = await researchWeb('Public question only', { searchProvider: 'fetch' }, runtime);
-  assert.deepEqual(report, { status: 'unavailable', reason: 'No model configured' });
-  assert.ok(!('jobId' in report));
-  assert.ok(!('poll' in report));
-  const controller = new AbortController();
-  controller.abort();
-  await assert.rejects(
-    researchWeb('Public question only', { searchProvider: 'fetch' }, runtime, controller.signal),
-    /abort/i,
-  );
 });
 
 test('minimal prompt and lazy skills describe tracked artifact contracts', async () => {
@@ -104,7 +78,7 @@ test('minimal prompt and lazy skills describe tracked artifact contracts', async
     /\bDEAD\b/,
     /deus_dexter_issues_live/,
     /deus_dexter_issues_plan/,
-    /deus_dexter_issue_close/,
+    /deus_dexter_issue_reject/,
     /Never run the `run` drain/i,
   ])
     assert.match(productControl, pattern);

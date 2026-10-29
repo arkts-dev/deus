@@ -10,7 +10,6 @@ import { botsLive, EventReader } from './operations.js';
 import { registerMetricsTool } from './metrics.js';
 import { jsonResult as output, pageResult } from './process.js';
 import { packageRoot } from './resources.js';
-import { researchWeb, webConfigFromEnv } from './research.js';
 
 export function registerDexterTools(pi: ToolRegistrar) {
   registerMetricsTool(pi);
@@ -70,7 +69,7 @@ export function registerDexterTools(pi: ToolRegistrar) {
     },
   });
   const workspace = Type.String({ description: 'Absolute Dexter workspace path' });
-  const issue = Type.String({ pattern: '^ISSUE-\\d+$' });
+  const issue = Type.String({ pattern: '^ISSUE-(?!0+$)[0-9]{4,}$' });
   const priority = Type.Integer({
     minimum: 1,
     maximum: 4,
@@ -81,13 +80,13 @@ export function registerDexterTools(pi: ToolRegistrar) {
   });
   const submission = { workspace, title: Type.String({ minLength: 1 }), body: Type.String() };
   mutation(
-    'submit',
-    'Submit an objective through the verified CLI.',
+    'epic_create',
+    'Create an epic objective for Dexter to decompose through the verified CLI.',
     Type.Object(submission),
-    (c, p, s) => c.submit(p, s),
+    (c, p, s) => c.createEpic(p, s),
   );
   mutation(
-    'issue_create',
+    'task_create',
     'Create a standalone task or a child of a tracking epic through the verified CLI.',
     Type.Object({
       ...submission,
@@ -97,13 +96,19 @@ export function registerDexterTools(pi: ToolRegistrar) {
       dependencies: Type.Array(issue, { description: 'Use [] for no dependencies.' }),
       priority,
     }),
-    (c, p, s) => c.createIssue({ ...p, parent: p.parent ?? undefined }, s),
+    (c, p, s) => c.createTask({ ...p, parent: p.parent ?? undefined }, s),
   );
   mutation(
     'issue_nudge',
     'Restart a blocked issue from valid state.',
     Type.Object({ workspace, issue }),
     (c, p, s) => c.nudgeIssue(p, s),
+  );
+  mutation(
+    'issue_reject',
+    'Reject an issue and every unfinished descendant through Dexter manual control. Destructive subtree operation, not successful completion; inspect the subtree and obtain explicit user authorization first.',
+    Type.Object({ workspace, issue }),
+    (c, p, s) => c.rejectIssue(p, s),
   );
   mutation(
     'issue_reprioritize',
@@ -132,7 +137,7 @@ export function registerDexterTools(pi: ToolRegistrar) {
     Type.Object({
       workspace,
       issue,
-      candidate: Type.String({ pattern: '^AC-\\d+$' }),
+      candidate: Type.String({ pattern: '^AC-(?!0+$)[0-9]{6,}$' }),
       reason: Type.String({ minLength: 1 }),
     }),
     (c, p, s) => c.acceptArchitecture(p, s),
@@ -142,7 +147,7 @@ export function registerDexterTools(pi: ToolRegistrar) {
     annotations: readOnly,
     label: 'Live bot ownership',
     description:
-      'Read working bots (including stale owners), issue/MR/run targets and correlated claims. Local PID or remote heartbeat liveness; cooldown is a persisted-config policy estimate, not observed worker configuration. Read-only, no CLI.',
+      'Read working run leases from scheduler.sqlite3, including stale owners and issue targets. Local PID or remote heartbeat liveness is not proof of agent progress. Process-local reservations and throttling are not observable. Read-only, no CLI.',
     parameters: Type.Object({ workspace }),
     async execute(_id, p) {
       return output(await botsLive(p.workspace));
@@ -154,7 +159,7 @@ export function registerDexterTools(pi: ToolRegistrar) {
     annotations: readOnly,
     label: 'Read recent events',
     description:
-      'Read local bus summaries newest first, then older pages using a path-free cursor. Normally 20, maximum 100 events and 8 KiB response bytes per page; no bodies. Appends do not disrupt continuation; cursors expire on reload. Read-only, no CLI.',
+      'Read scheduler.sqlite3 notification summaries newest first, then older pages using a path-free cursor. Normally 20, maximum 100 events and 8 KiB response bytes per page; no bodies. Appends do not disrupt continuation; cursors expire on reload. Read-only, no CLI.',
     parameters: Type.Object({
       workspace,
       cursor,
@@ -192,25 +197,6 @@ export function registerDexterTools(pi: ToolRegistrar) {
       },
     });
   }
-  pi.registerTool({
-    name: 'deus_research_web',
-    annotations: { ...readOnly, idempotentHint: false },
-    label: 'Research public web',
-    description:
-      'Run one foreground isolated public web research session with source receipts and bounded requests.',
-    parameters: Type.Object({
-      question: Type.String(),
-      provider: Type.Union(
-        ['default', 'exa', 'searxng', 'brave', 'tavily', 'fetch'].map((x) => Type.Literal(x)),
-        { description: '"default" uses the configured provider.' },
-      ),
-    }),
-    async execute(_id, p, signal) {
-      const config = webConfigFromEnv();
-      if (p.provider !== 'default') config.searchProvider = p.provider;
-      return output(await researchWeb(p.question, config, undefined, signal));
-    },
-  });
 }
 
 export default function extension(pi: ExtensionAPI) {

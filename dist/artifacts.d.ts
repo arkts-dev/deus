@@ -1,3 +1,5 @@
+export declare const RUN_ID: RegExp;
+export declare const ISSUE_ID: RegExp;
 export declare const SECTIONS: {
     readonly issue: readonly ["summary", "metadata", "body", "notes"];
     readonly mr: readonly ["summary", "metadata", "body", "reviews", "notes"];

@@ -27,6 +27,10 @@ test('artifact sections, defaults, UTF-8 cursors, redaction and path boundaries'
   assert.match((await read('issue', 'ISSUE-0001', 'notes')).text, /OLD HISTORY/);
   assert.match((await read('mr', 'MR-0001', 'reviews')).text, /Review evidence/);
   assert.match((await read('run', 'RUN-abc-0001')).text, /done/);
+  for (const id of ['RUN-000555', 'RUN-remote.session_2']) {
+    await put(`runs/${id}/run.json`, JSON.stringify({ run: id, status: 'running' }));
+    assert.match((await read('run', id)).text, /running/);
+  }
   for (const [section, expected] of [
     ['assignment', 'Assignment'],
     ['transcript', 'Transcript'],

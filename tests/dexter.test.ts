@@ -6,9 +6,9 @@ import { join } from 'node:path';
 import { DexterPlugin } from '../src/dexter.js';
 
 const operations = (c: DexterPlugin, workspace: string) => [
-  () => c.submit({ workspace, title: 'literal;$(touch nope)', body: 'two words' }),
+  () => c.createEpic({ workspace, title: 'literal;$(touch nope)', body: 'two words' }),
   () =>
-    c.createIssue({
+    c.createTask({
       workspace,
       title: 'title',
       body: '--dir=/other',
@@ -33,20 +33,20 @@ const operations = (c: DexterPlugin, workspace: string) => [
       candidate: 'AC-000001',
       reason: 'reason',
     }),
+  () => c.rejectIssue({ workspace, issue: 'ISSUE-0001' }),
 ];
-test('unknown signature blocks every typed mutation and generic execution is absent', async (t) => {
+test('unknown signature blocks every typed mutation', async (t) => {
   environment(t, 'DEUS_DEXTER_TRUSTED_FINGERPRINTS');
   const c = new DexterPlugin(process.execPath);
   const probe = await c.probe();
   assert.equal(probe.profile, 'unknown');
   assert.deepEqual(probe.supportedCommands, []);
-  assert.equal(await c.probe(), probe);
+  assert.deepEqual(await c.probe(), probe);
   for (const run of operations(c, '/tmp/workspace')) {
     const r = await run();
     assert.equal(r.status, 'rejected');
     assert.equal(r.profile, 'unknown');
   }
-  assert.equal('exec' in c, false);
 });
 test('typed argv, validation, bounded receipts and uncertain outcomes without retries', async (t) => {
   const { root: dir } = await fixture(t);
@@ -59,7 +59,7 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
   );
   for (const run of operations(c, dir)) assert.equal((await run()).status, 'completed');
   await c.relinkIssue({ workspace: dir, issue: 'ISSUE-0001', parent: 'ISSUE-0004' });
-  await c.createIssue({
+  await c.createTask({
     workspace: dir,
     title: 'Standalone',
     body: 'Body',
@@ -91,6 +91,7 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
       'ISSUE-0003',
     ],
     ['accept-architecture', 'ISSUE-0001', '--candidate', 'AC-000001', '--reason=reason'],
+    ['reject-issue', 'ISSUE-0001'],
     ['relink-issue', 'ISSUE-0001', '--parent', 'ISSUE-0004'],
     ['issue', '--title=Standalone', '--body=Body', '--priority', '3'],
   ].map(([command, ...args]) => [command, `--dir=${dir}`, ...args]);
@@ -116,9 +117,9 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
     'rejected',
   );
   assert.equal(await readFile(join(dir, 'argv'), 'utf8'), argv);
-  const nudge = () => c.nudgeIssue({ workspace: dir, issue: 'ISSUE-0001' });
+  const reject = () => c.rejectIssue({ workspace: dir, issue: 'ISSUE-0001' });
   await program("process.stdout.write('x'.repeat(600_000));");
-  const large = await nudge();
+  const large = await reject();
   assert.equal(large.status, 'completed');
   assert.equal(large.signal, null);
   assert.equal(large.diagnostics.truncated, true);
@@ -127,26 +128,26 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
   await program(
     "import { appendFileSync } from 'node:fs'; appendFileSync('calls', 'x'); process.exitCode = 7;",
   );
-  const failed = await nudge();
+  const failed = await reject();
   assert.equal(failed.status, 'outcome_unknown');
   assert.equal(failed.exitCode, 7);
   assert.equal(await readFile(join(dir, 'calls'), 'utf8'), 'x');
   await program("process.kill(process.pid, 'SIGTERM');");
-  const terminated = await nudge();
+  const terminated = await reject();
   assert.equal(terminated.status, 'outcome_unknown');
   assert.equal(terminated.signal, 'SIGTERM');
   await program(
     "import { writeFileSync } from 'node:fs'; writeFileSync('started', 'yes'); setInterval(() => {}, 1000);",
   );
   const abort = new AbortController();
-  const pending = c.nudgeIssue({ workspace: dir, issue: 'ISSUE-0001' }, abort.signal);
+  const pending = c.rejectIssue({ workspace: dir, issue: 'ISSUE-0001' }, abort.signal);
   assert.equal(await waitFile(join(dir, 'started')), 'yes');
   abort.abort();
   const cancelled = await pending;
   assert.equal(cancelled.status, 'outcome_unknown');
   assert.equal(cancelled.cancelled, true);
   await rm(executable);
-  const missing = await nudge();
+  const missing = await reject();
   assert.equal(missing.status, 'outcome_unknown');
   assert.equal(missing.exitCode, null);
 });

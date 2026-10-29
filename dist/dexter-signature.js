@@ -65,29 +65,38 @@ export async function verifyCommitSignature(executable, cwd, signal) {
     if (!succeeded(revParse))
         return fail('git rev-parse HEAD failed');
     const commit = revParse.stdout.trim();
-    const tmp = await mkdtemp(join(tmpdir(), 'deus-gpg-'));
-    const env = { ...process.env, GNUPGHOME: tmp };
-    try {
-        for (const fingerprint of trusted) {
-            diagnostics[`gpg --recv-keys ${fingerprint.slice(-16)}`] = await runProcess('gpg', ['--batch', '--keyserver', KEYSERVER, '--recv-keys', fingerprint], { cwd, env, signal });
+    // Use an already-installed public key without network access. Only a missing key
+    // permits retrieval into an isolated keyring; an invalid signature never does.
+    let verify = await runProcess('git', ['-C', repo, 'verify-commit', '--raw', commit], {
+        cwd,
+        signal,
+    });
+    diagnostics['git verify-commit'] = verify;
+    if (!succeeded(verify) && /\[GNUPG:\] NO_PUBKEY /.test(verify.stderr) && !signal?.aborted) {
+        const tmp = await mkdtemp(join(tmpdir(), 'deus-gpg-'));
+        const env = { ...process.env, GNUPGHOME: tmp };
+        try {
+            for (const fingerprint of trusted) {
+                diagnostics[`gpg --recv-keys ${fingerprint.slice(-16)}`] = await runProcess('gpg', ['--batch', '--keyserver', KEYSERVER, '--recv-keys', fingerprint], { cwd, env, signal });
+            }
+            verify = await runProcess('git', ['-C', repo, 'verify-commit', '--raw', commit], {
+                cwd,
+                env,
+                signal,
+            });
+            diagnostics['git verify-commit (isolated keyring)'] = verify;
         }
-        const verify = await runProcess('git', ['-C', repo, 'verify-commit', '--raw', commit], {
-            cwd,
-            env,
-            signal,
-        });
-        diagnostics['git verify-commit'] = verify;
-        if (!succeeded(verify))
-            return fail('git verify-commit failed (signature not valid)');
-        const match = verify.stderr.match(/VALIDSIG\s+([0-9A-F]{40})/);
-        const fingerprint = match ? match[1] : null;
-        if (!fingerprint)
-            return fail('no VALIDSIG status in verify-commit output');
-        if (!trusted.includes(fingerprint))
-            return fail(`signer ${fingerprint} is not in DEUS_DEXTER_TRUSTED_FINGERPRINTS`);
-        return { commit, fingerprint, error: null, diagnostics };
+        finally {
+            await rm(tmp, { recursive: true, force: true });
+        }
     }
-    finally {
-        await rm(tmp, { recursive: true, force: true });
-    }
+    if (!succeeded(verify))
+        return fail('git verify-commit failed (signature not valid)');
+    const match = verify.stderr.match(/\[GNUPG:\] VALIDSIG ([0-9A-F]{40})\b/);
+    const fingerprint = match ? match[1] : null;
+    if (!fingerprint)
+        return fail('no VALIDSIG status in verify-commit output');
+    if (!trusted.includes(fingerprint))
+        return fail(`signer ${fingerprint} is not in DEUS_DEXTER_TRUSTED_FINGERPRINTS`);
+    return { commit, fingerprint, error: null, diagnostics };
 }

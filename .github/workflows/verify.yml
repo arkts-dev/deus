@@ -31,26 +31,26 @@ jobs:
           path: upstream-dexter
           token: ${{ secrets.DEXTER_READ_TOKEN }}
           persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        if: env.PRIVATE_CLI_AVAILABLE == 'true'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          python-version: '3.12'
-      - name: Install Dexter CLI
+          node-version: '26.11.1'
+          cache: npm
+      - name: Build current Dexter CLI
         if: env.PRIVATE_CLI_AVAILABLE == 'true'
         run: |
           echo "dexter tested at $(git -C upstream-dexter rev-parse HEAD)"
-          python -m venv upstream-dexter/.venv
-          upstream-dexter/.venv/bin/python -m pip install --no-input --disable-pip-version-check -e ./upstream-dexter
-          echo "$GITHUB_WORKSPACE/upstream-dexter/.venv/bin" >> "$GITHUB_PATH"
-          echo "DEXTER_BIN=$GITHUB_WORKSPACE/upstream-dexter/.venv/bin/dexter" >> "$GITHUB_ENV"
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '22.19.0'
-          cache: npm
+          npm ci --prefix upstream-dexter --ignore-scripts
+          npm ci --prefix upstream-dexter/engine
+          npm run build --prefix upstream-dexter
+          echo "$GITHUB_WORKSPACE/upstream-dexter" >> "$GITHUB_PATH"
+          echo "DEXTER_BIN=$GITHUB_WORKSPACE/upstream-dexter/dexter" >> "$GITHUB_ENV"
       - run: npm ci --ignore-scripts
       - run: npm run check
       - run: npm run format:check
       - run: npm run skills:verify
+      - name: Check current Dexter command parser
+        if: env.PRIVATE_CLI_AVAILABLE == 'true'
+        run: npm run test:current-dexter -- "$GITHUB_WORKSPACE/upstream-dexter"
       - run: npm run test:package
         env:
           # GitHub's web-flow signing key, used for commits merged through the GitHub UI.
