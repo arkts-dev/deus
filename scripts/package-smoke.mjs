@@ -77,7 +77,7 @@ try {
   );
   assert.ok(kernel.includes('Never retry failed mutations automatically'));
   const control = await readFile(join(packageDir, 'skills/dexter-control/SKILL.md'), 'utf8');
-  for (const name of ['issues_live', 'issues_plan', 'issue_close'])
+  for (const name of ['issues_live', 'issues_plan', 'issue_reject'])
     assert.ok(control.includes(`deus_dexter_${name}`));
   assert.ok(control.includes('Read-only operations are allowed as usual'));
   assert.ok(control.includes('report the gap and leave Dexter state unchanged'));
@@ -120,9 +120,9 @@ try {
     'deus_dexter_bots_live',
     'deus_dexter_epic_create',
     'deus_dexter_events_read',
-    'deus_dexter_issue_close',
     'deus_dexter_issue_nudge',
     'deus_dexter_issue_read',
+    'deus_dexter_issue_reject',
     'deus_dexter_issue_relink',
     'deus_dexter_issue_reprioritize',
     'deus_dexter_issues_live',
@@ -235,15 +235,12 @@ tools/gate-manifest.sh
     assert.equal(blocked.status, 'rejected');
     assert.equal(blocked.profile, 'unknown');
     assert.equal(blocked.exitCode, null);
-    const closure = await invoke('deus_dexter_issue_close', {
+    const rejection = await invoke('deus_dexter_issue_reject', {
       workspace: root,
       issue: 'ISSUE-0001',
-      reason: 'NOISE',
-      successor: null,
-      confirm: true,
     });
-    assert.equal(closure.status, 'rejected');
-    assert.equal(closure.profile, 'unknown');
+    assert.equal(rejection.status, 'rejected');
+    assert.equal(rejection.profile, 'unknown');
     await mkdir(join(root, 'forge/wiki'), { recursive: true });
     await writeFile(
       join(root, 'forge/wiki/sample.md'),
@@ -415,7 +412,7 @@ tools/gate-manifest.sh
           process.env.DEUS_TEST_NO_CLI === '1'
             ? 'legacy override ignored; default dexter name resolves the PATH fixture'
             : 'legacy override ignored; native dexter discovered on PATH',
-          'unknown-profile typed mutation and unavailable closure blocked',
+          'unknown-profile typed mutations including subtree rejection blocked',
           'bounded reader continuation without CLI execution',
           'current SQLite ownership and event continuation without CLI execution',
           'installed MCP executable, current tool discovery, workspace binding, skills and typed trust refusal',

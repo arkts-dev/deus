@@ -18,7 +18,7 @@ git diff --exit-code -- dist
 
 The compiled `dist/` directory is committed because Pi installs this package directly from Git. Rebuild and include its changes with any source edit. The signature-verifying Dexter bridge accepts only a trusted executable; do not add an alternate command route or guess a new CLI mapping from names alone.
 
-For the current TypeScript Dexter checkout, run `npm run test:current-dexter -- /path/to/dexter` after building Dexter. This checks all six argv contracts against its real command parser without starting a scheduler or mutating a project. Dexter itself requires Node 26.11.1; Deus still supports Node 22.19 or newer.
+For the current TypeScript Dexter checkout, run `npm run test:current-dexter -- /path/to/dexter` after building Dexter. This checks all seven argv contracts against its real command parser without starting a scheduler or mutating a project. Dexter itself requires Node 26.11.1; Deus still supports Node 22.19 or newer.
 
 The live signature test is skipped on fork PRs because the compatible CLI is private. Maintainers run `npm run test:package` with `DEUS_DEXTER_TRUSTED_FINGERPRINTS` set to verify actual signature evidence. The package smoke uses a local fixture and does not claim to validate a real CLI.
 

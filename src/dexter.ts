@@ -10,6 +10,7 @@ export const MUTATION_COMMANDS = [
   'reprioritize-issue',
   'relink-issue',
   'accept-architecture',
+  'reject-issue',
 ] as const;
 export interface ProbeReport {
   executable: string;
@@ -100,6 +101,9 @@ export class DexterPlugin {
   }
   nudgeIssue(p: IssueTarget, signal?: AbortSignal) {
     return this.invoke('nudge-issue', [p.issue], p, issueId(p.issue), signal);
+  }
+  rejectIssue(p: IssueTarget, signal?: AbortSignal) {
+    return this.invoke('reject-issue', [p.issue], p, issueId(p.issue), signal);
   }
   reprioritizeIssue(p: IssueTarget & { priority: number }, signal?: AbortSignal) {
     return this.invoke(

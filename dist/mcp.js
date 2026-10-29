@@ -104,11 +104,7 @@ export async function createDeusServer(workspace) {
                     await workspacePath(cwd, rel, true);
                     args.path = rel;
                 }
-                if ([
-                    'deus_dexter_issues_live',
-                    'deus_dexter_issues_plan',
-                    'deus_dexter_issue_close',
-                ].includes(tool.name)) {
+                if (['deus_dexter_issues_live', 'deus_dexter_issues_plan'].includes(tool.name)) {
                     // The existing board adapter reads these paths directly. Reject link escapes first.
                     for (const dir of ['forge', 'forge/issues', 'forge/.candidates']) {
                         await workspacePath(cwd, dir, true);

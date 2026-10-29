@@ -67,6 +67,7 @@ program.parse(process.argv);
         candidate: 'AC-000001',
         reason: '-literal justification',
       }),
+    () => client.rejectIssue({ workspace: root, issue: 'ISSUE-0001' }),
   ];
   for (const call of calls) {
     const result = await call();
@@ -94,8 +95,9 @@ program.parse(process.argv);
   assert.deepEqual(parsed[4].options.removeDependency, ['ISSUE-0003']);
   assert.equal(parsed[5].options.candidate, 'AC-000001');
   assert.equal(parsed[5].options.reason, '-literal justification');
+  assert.deepEqual(parsed[6].args, ['ISSUE-0001']);
   console.log(
-    'Current Dexter parser accepted all six exact argv contracts; no project mutations executed.',
+    'Current Dexter parser accepted all seven exact argv contracts; no project mutations executed.',
   );
 } finally {
   await rm(root, { recursive: true, force: true });

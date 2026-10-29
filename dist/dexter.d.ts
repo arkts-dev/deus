@@ -1,6 +1,6 @@
 import { type ProcessResult } from './process.js';
 import { type MutationReceipt } from './receipt.js';
-export declare const MUTATION_COMMANDS: readonly ["submit", "issue", "nudge-issue", "reprioritize-issue", "relink-issue", "accept-architecture"];
+export declare const MUTATION_COMMANDS: readonly ["submit", "issue", "nudge-issue", "reprioritize-issue", "relink-issue", "accept-architecture", "reject-issue"];
 export interface ProbeReport {
     executable: string;
     profile: 'dexter-signed' | 'unknown';
@@ -39,6 +39,7 @@ export declare class DexterPlugin {
     createEpic(p: EpicCreation, signal?: AbortSignal): Promise<MutationReceipt>;
     createTask(p: TaskCreation, signal?: AbortSignal): Promise<MutationReceipt>;
     nudgeIssue(p: IssueTarget, signal?: AbortSignal): Promise<MutationReceipt>;
+    rejectIssue(p: IssueTarget, signal?: AbortSignal): Promise<MutationReceipt>;
     reprioritizeIssue(p: IssueTarget & {
         priority: number;
     }, signal?: AbortSignal): Promise<MutationReceipt>;

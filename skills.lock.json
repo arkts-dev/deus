@@ -5,7 +5,7 @@
     {
       "output": "skills/dexter-control/SKILL.md",
       "origin": "deus-original",
-      "sha256": "ef261fc842ae2c1d5381867db5020eb63f258cf061df55b6d456bd1904923557"
+      "sha256": "f4bad3d27a8ce53dae8dc8dd920b98a609ef892c886f1b64a448ff183993f2e7"
     },
     {
       "output": "skills/designer/SKILL.md",
@@ -15,7 +15,7 @@
     {
       "output": "skills/product-control/SKILL.md",
       "origin": "deus-original",
-      "sha256": "eb6361f79ffe4e9dec07f40c2732bfb556c9369c8a1560ed4e721974cbce409c"
+      "sha256": "9736965c3de36a7697989a272a9d826075c4085ba7ed54e8206311c47a9d3830"
     },
     {
       "output": "skills/web-research/SKILL.md",

@@ -105,6 +105,12 @@ export function registerDexterTools(pi: ToolRegistrar) {
     (c, p, s) => c.nudgeIssue(p, s),
   );
   mutation(
+    'issue_reject',
+    'Reject an issue and every unfinished descendant through Dexter manual control. Destructive subtree operation, not successful completion; inspect the subtree and obtain explicit user authorization first.',
+    Type.Object({ workspace, issue }),
+    (c, p, s) => c.rejectIssue(p, s),
+  );
+  mutation(
     'issue_reprioritize',
     'Set priority (1 highest, 4 lowest).',
     Type.Object({ workspace, issue, priority }),

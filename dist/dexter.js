@@ -9,6 +9,7 @@ export const MUTATION_COMMANDS = [
     'reprioritize-issue',
     'relink-issue',
     'accept-architecture',
+    'reject-issue',
 ];
 const issueId = (value) => /^ISSUE-(?!0+$)[0-9]{4,}$/.test(value);
 const priorityValid = (value) => Number.isInteger(value) && value >= 1 && value <= 4;
@@ -58,6 +59,9 @@ export class DexterPlugin {
     }
     nudgeIssue(p, signal) {
         return this.invoke('nudge-issue', [p.issue], p, issueId(p.issue), signal);
+    }
+    rejectIssue(p, signal) {
+        return this.invoke('reject-issue', [p.issue], p, issueId(p.issue), signal);
     }
     reprioritizeIssue(p, signal) {
         return this.invoke('reprioritize-issue', [p.issue, '--priority', String(p.priority)], p, issueId(p.issue) && priorityValid(p.priority), signal);

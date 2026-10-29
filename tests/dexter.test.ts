@@ -33,6 +33,7 @@ const operations = (c: DexterPlugin, workspace: string) => [
       candidate: 'AC-000001',
       reason: 'reason',
     }),
+  () => c.rejectIssue({ workspace, issue: 'ISSUE-0001' }),
 ];
 test('unknown signature blocks every typed mutation and generic execution is absent', async (t) => {
   environment(t, 'DEUS_DEXTER_TRUSTED_FINGERPRINTS');
@@ -91,6 +92,7 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
       'ISSUE-0003',
     ],
     ['accept-architecture', 'ISSUE-0001', '--candidate', 'AC-000001', '--reason=reason'],
+    ['reject-issue', 'ISSUE-0001'],
     ['relink-issue', 'ISSUE-0001', '--parent', 'ISSUE-0004'],
     ['issue', '--title=Standalone', '--body=Body', '--priority', '3'],
   ].map(([command, ...args]) => [command, `--dir=${dir}`, ...args]);
@@ -116,7 +118,8 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
     'rejected',
   );
   assert.equal(await readFile(join(dir, 'argv'), 'utf8'), argv);
-  const nudge = () => c.nudgeIssue({ workspace: dir, issue: 'ISSUE-0001' });
+  // Rejection uses the same bounded, uncertain-outcome and cancellation path.
+  const nudge = () => c.rejectIssue({ workspace: dir, issue: 'ISSUE-0001' });
   await program("process.stdout.write('x'.repeat(600_000));");
   const large = await nudge();
   assert.equal(large.status, 'completed');
@@ -139,7 +142,7 @@ test('typed argv, validation, bounded receipts and uncertain outcomes without re
     "import { writeFileSync } from 'node:fs'; writeFileSync('started', 'yes'); setInterval(() => {}, 1000);",
   );
   const abort = new AbortController();
-  const pending = c.nudgeIssue({ workspace: dir, issue: 'ISSUE-0001' }, abort.signal);
+  const pending = c.rejectIssue({ workspace: dir, issue: 'ISSUE-0001' }, abort.signal);
   assert.equal(await waitFile(join(dir, 'started')), 'yes');
   abort.abort();
   const cancelled = await pending;

@@ -18,16 +18,17 @@ Start Pi in your project; request designer, product-control, research, or `deus_
 
 ### Dexter CLI
 
-`deus_dexter_probe({diagnostics:false})` returns trust evidence; true adds bounded diagnostics. Six mutations require absolute workspaces and verified executable/argv, without shells or retries:
+`deus_dexter_probe({diagnostics:false})` returns trust evidence; true adds bounded diagnostics. Seven mutations require absolute workspaces and verified executable/argv, without shells or retries:
 
 - `deus_dexter_epic_create({workspace,title,body})`: creates an objective for decomposition.
 - `deus_dexter_task_create({workspace,title,body,parent,dependencies,priority})`: standalone parent null; dependencies []; normal priority 3 (1 highest, 4 lowest).
 - `deus_dexter_issue_nudge({workspace,issue})`
+- `deus_dexter_issue_reject({workspace,issue})`: rejects the target and every unfinished descendant. Inspect the subtree and obtain explicit user authorization first; rejection is not completion and does not satisfy dependencies.
 - `deus_dexter_issue_reprioritize({workspace,issue,priority})`
 - `deus_dexter_issue_relink({workspace,issue,parent,addDependencies,removeDependencies})`: parent "unchanged" retains, null clears, ID replaces; [] means no dependency changes.
 - `deus_dexter_architecture_accept({workspace,issue,candidate,reason})`
 
-Receipts preserve status (`rejected`, `completed`, `outcome_unknown`), issue, exit, signal, timeout, cancellation, reasons and diagnostics (≤2 KiB/stream). Output limits never kill mutations. Failed/interrupted/uncertain outcomes require live-state inspection, never automatic retry. Completion is not acceptance; closure shares these rules.
+Receipts preserve status (`rejected`, `completed`, `outcome_unknown`), issue, exit, signal, timeout, cancellation, reasons and diagnostics (≤2 KiB/stream). Output limits never kill mutations. Failed/interrupted/uncertain outcomes require live-state inspection, never automatic retry. Completion is not acceptance; subtree rejection shares these rules.
 
 All tool fields are explicit. Four readers take `{workspace,section,cursor,limit}` plus `issue`, `mr`, `slug`, or `run`:
 
@@ -42,7 +43,7 @@ Responses: `{id,section,text,revision,nextCursor}`. Normally limit 2048 UTF-8 by
 
 The CLI lacks structured pagination/run reads. Readers access host-local Forge files (≤64 MiB/file/history); ordinary read-only inspection remains available.
 
-`deus_dexter_issues_live`/`issues_plan` take `{workspace,cursor,limit}` (normally null/20), returning records/total/revision/nextCursor, ≤8 KiB/page. Changes invalidate cursors. Live records retain readiness/claims/blockers; plans retain classifications/actions/closures. `deus_dexter_issue_close` validates approved requests but returns rejected: current Dexter has no guarded leaf-close CLI operation. It never edits Forge or substitutes subtree rejection; successor is ID/null. Initialization, drain, directives, request answers/denials, config and doctor are unexposed.
+`deus_dexter_issues_live`/`issues_plan` take `{workspace,cursor,limit}` (normally null/20), returning records/total/revision/nextCursor, ≤8 KiB/page. Changes invalidate cursors. Live records retain readiness/claims/blockers; plans retain classifications/actions. Rejection is available only as the explicit subtree operation described above; Deus never edits Forge directly. Initialization, drain, directives, request answers/denials, config and doctor are unexposed.
 
 `deus_dexter_bots_live({workspace})`: returns `runs` from working leases in `scheduler.sqlite3`, including stale owners, issue targets and PID/heartbeat liveness; ≤16 KiB. This is owner liveness, not agent progress. Process-local reservations and throttling are explicitly not observable. Board `claimed` means a working issue lease, not an obsolete claim file.
 

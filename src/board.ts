@@ -1,4 +1,4 @@
-/** Product control: typed board snapshot, PRODUCT classification, and the one approval-gated close edit. */
+/** Read-only product board snapshots, classifications and scheduling proposals. */
 import { readOnly, type ToolRegistrar } from './tool-registry.js';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
@@ -7,15 +7,12 @@ import { document, safePath, source, ISSUE_ID } from './artifacts.js';
 import { workingRuns } from './scheduler.js';
 import { isAbsolute } from 'node:path';
 import { jsonResult as output } from './process.js';
-import { mutationReceipt } from './receipt.js';
-import { DexterPlugin } from './dexter.js';
 import { RecordPager } from './cursor.js';
 import { banned, terms } from './governance.js';
 
 const TERMINAL = new Set(['closed', 'rejected']);
 const READY = new Set(['open', 'ready']);
 const CANDIDATE = /^(BC-\d+)\.md$/;
-export type Reason = 'NOISE' | 'DEAD' | 'SUPERSEDED';
 export interface Issue {
   id: string;
   kind: string;
@@ -152,17 +149,6 @@ export function classify(issue: Issue, objective: string[]) {
   };
 }
 
-export function preconditions(issue: Issue, board: Board): string[] {
-  const errors: string[] = [];
-  if (terminal(issue)) errors.push(`already ${issue.status}`);
-  if (issue.claimed) errors.push('active claim');
-  if (issue.workdir) errors.push('active workdir');
-  if (issue.mr) errors.push('active merge request');
-  if (board.issues.some((child) => child.parent === issue.id && !terminal(child)))
-    errors.push('issue has open children');
-  return errors;
-}
-
 const rootTerms = (board: Board) => {
   const root = board.issues
     .filter((issue) => issue.parent === null && !terminal(issue))
@@ -176,24 +162,6 @@ export function planBoard(board: Board) {
     .filter((issue) => !terminal(issue))
     .map((issue) => classify(issue, objectiveTerms));
   const byId = new Map(board.issues.map((issue) => [issue.id, issue] as const));
-  const nonTerminal = board.issues.filter((issue) => !terminal(issue));
-  const closeIds = new Set<string>();
-  const closes = classifications
-    .filter((entry) => entry.classification === 'NOISE')
-    .map((entry) => {
-      const issue = byId.get(entry.id)!;
-      const errors = preconditions(issue, board);
-      if (!errors.length) closeIds.add(issue.id);
-      return {
-        issue: issue.id,
-        reason: 'NOISE' as const,
-        evidence: entry.evidence,
-        unblocks: nonTerminal
-          .filter((consumer) => consumer.deps.includes(issue.id))
-          .map((consumer) => consumer.id),
-        errors,
-      };
-    });
   const actions: { tool: string; parameters: Record<string, unknown>; reason: string }[] = [];
   for (const entry of classifications.filter((item) => item.classification === 'PRODUCT')) {
     const issue = byId.get(entry.id);
@@ -211,51 +179,19 @@ export function planBoard(board: Board) {
         reason: 'PRODUCT blocked',
       });
   }
-  const reports = closes.flatMap((close) =>
-    close.errors.map((error) => `operator action required for ${close.issue}: ${error}`),
-  );
+  const reports: string[] = [];
   for (const issue of board.issues)
     if (!terminal(issue) && issue.breakdown && !board.candidates.includes(issue.breakdown))
       reports.push(
         `operator action required for ${issue.id}: dangling breakdown_candidate_id ${issue.breakdown}`,
       );
-  const closedAfter = new Set([
-    ...board.issues.filter((issue) => issue.status === 'closed').map((issue) => issue.id),
-    ...closeIds,
-  ]);
-  const after = board.issues.filter(
-    (issue) =>
-      !terminal(issue) &&
-      READY.has(issue.status) &&
-      issue.deps.every((dep) => closedAfter.has(dep)),
-  ).length;
   return {
     objectiveTerms,
     classifications,
-    closes,
     actions,
     reports,
     saturation: { before: board.ready.length, after: board.ready.length },
-    closureCapability: 'unavailable: current Dexter has no guarded leaf-close CLI operation',
-    potentialReadyAfterClosures: after,
   };
-}
-
-function closeErrors(board: Board, issueId: string, reason: Reason, successor?: string): string[] {
-  const issue = board.issues.find((entry) => entry.id === issueId);
-  if (!issue) return [`unknown issue: ${issueId}`];
-  if (terminal(issue)) return [];
-  const errors = preconditions(issue, board);
-  if (classify(issue, rootTerms(board)).classification === 'PRODUCT' && !successor)
-    errors.push(`refusing to close PRODUCT ${issueId}: name a successor`);
-  if (reason === 'SUPERSEDED' && !successor) errors.push('SUPERSEDED requires a successor');
-  if (
-    successor &&
-    (successor === issueId ||
-      !board.issues.some((entry) => entry.id === successor && !terminal(entry)))
-  )
-    errors.push(`unknown or terminal successor: ${successor}`);
-  return errors;
 }
 
 export function registerBoardTools(pi: ToolRegistrar) {
@@ -306,7 +242,7 @@ export function registerBoardTools(pi: ToolRegistrar) {
     annotations: readOnly,
     label: 'Plan board saturation',
     description:
-      'Page PRODUCT-first classifications, scheduling proposals and guarded closures. Never mutates; statuses and proposals are not acceptance. Snapshot cursors reject changes.',
+      'Page PRODUCT-first classifications and scheduling proposals. Never mutates; statuses and proposals are not acceptance. Snapshot cursors reject changes.',
     parameters: Type.Object(pagination),
     async execute(_id, p) {
       const plan = planBoard(await loadBoard(p.workspace));
@@ -316,69 +252,11 @@ export function registerBoardTools(pi: ToolRegistrar) {
           plan.classifications.map((entry) => ({
             ...entry,
             actions: plan.actions.filter((action) => action.parameters.issue === entry.id),
-            closure: plan.closes.find((close) => close.issue === entry.id) ?? null,
-            reports: [
-              ...plan.reports.filter((report) => report.includes(entry.id)),
-              ...(plan.closes.some((close) => close.issue === entry.id)
-                ? [plan.closureCapability]
-                : []),
-            ],
+            reports: plan.reports.filter((report) => report.includes(entry.id)),
           })),
           p.cursor,
           p.limit,
         ),
-      );
-    },
-  });
-  pi.registerTool({
-    name: 'deus_dexter_issue_close',
-    label: 'Close noise issue',
-    description:
-      'Check an approved leaf closure request. Current Dexter has no guarded leaf-close CLI operation: returns rejected with the capability gap and never edits Forge. reject-issue is not equivalent (it rejects an entire subtree).',
-    parameters: Type.Object({
-      workspace,
-      issue: Type.String(),
-      reason: Type.Union([Type.Literal('NOISE'), Type.Literal('DEAD'), Type.Literal('SUPERSEDED')]),
-      successor: Type.Union([Type.String({ pattern: '^ISSUE-\\d+$' }), Type.Null()], {
-        description: 'Named non-terminal successor when closing PRODUCT work; null means none.',
-      }),
-      confirm: Type.Boolean(),
-    }),
-    async execute(_id, p, signal, _update, ctx) {
-      if (!p.confirm || signal?.aborted || !isAbsolute(p.workspace))
-        return output(
-          mutationReceipt('rejected', {
-            issue: p.issue,
-            cancelled: signal?.aborted,
-            reasons: ['Closure requires approval, an absolute workspace, and no cancellation'],
-          }),
-        );
-      const probe = await new DexterPlugin(process.env.DEXTER_BIN || 'dexter', ctx.cwd).probe(
-        signal,
-      );
-      const receipt = { profile: probe.profile, issue: p.issue };
-      if (probe.profile !== 'dexter-signed')
-        return output(mutationReceipt('rejected', { ...receipt, reasons: probe.reasons }));
-      const snapshot = await loadBoard(p.workspace);
-      const successor = p.successor ?? undefined;
-      const errors = closeErrors(snapshot, p.issue, p.reason, successor);
-      if (signal?.aborted)
-        return output(
-          mutationReceipt('rejected', {
-            ...receipt,
-            cancelled: true,
-            reasons: ['Cancelled before closure'],
-          }),
-        );
-      if (errors.length)
-        return output(mutationReceipt('rejected', { ...receipt, reasons: errors }));
-      return output(
-        mutationReceipt('rejected', {
-          ...receipt,
-          reasons: [
-            'Current Dexter has no guarded leaf-close CLI operation; workspace unchanged. reject-issue rejects a subtree and is not a closure substitute.',
-          ],
-        }),
       );
     },
   });

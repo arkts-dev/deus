@@ -1,7 +1,6 @@
-/** Product control: typed board snapshot, PRODUCT classification, and the one approval-gated close edit. */
+/** Read-only product board snapshots, classifications and scheduling proposals. */
 import { type ToolRegistrar } from './tool-registry.js';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-export type Reason = 'NOISE' | 'DEAD' | 'SUPERSEDED';
 export interface Issue {
     id: string;
     kind: string;
@@ -32,20 +31,12 @@ export declare function classify(issue: Issue, objective: string[]): {
     classification: string;
     evidence: string[];
 };
-export declare function preconditions(issue: Issue, board: Board): string[];
 export declare function planBoard(board: Board): {
     objectiveTerms: string[];
     classifications: {
         id: string;
         classification: string;
         evidence: string[];
-    }[];
-    closes: {
-        issue: string;
-        reason: "NOISE";
-        evidence: string[];
-        unblocks: string[];
-        errors: string[];
     }[];
     actions: {
         tool: string;
@@ -57,8 +48,6 @@ export declare function planBoard(board: Board): {
         before: number;
         after: number;
     };
-    closureCapability: string;
-    potentialReadyAfterClosures: number;
 };
 export declare function registerBoardTools(pi: ToolRegistrar): void;
 export default function board(pi: ExtensionAPI): void;

@@ -108,7 +108,7 @@ test('MCP exposes current typed tools and original skills with accurate annotati
       true,
     );
   assert.equal(
-    tools.find((tool) => tool.name === 'deus_dexter_issue_close')!.annotations!.readOnlyHint,
+    tools.find((tool) => tool.name === 'deus_dexter_issue_reject')!.annotations!.readOnlyHint,
     false,
   );
   const metricsArgs = {
@@ -164,10 +164,7 @@ test('MCP preserves trust refusal and current scheduler pagination', async (t) =
       'deus_dexter_task_create',
       { title: 'task', body: '', workspace: root, parent: null, dependencies: [], priority: 3 },
     ],
-    [
-      'deus_dexter_issue_close',
-      { workspace: root, issue: 'ISSUE-0001', reason: 'NOISE', successor: null, confirm: true },
-    ],
+    ['deus_dexter_issue_reject', { workspace: root, issue: 'ISSUE-0001' }],
   ] as const) {
     const receipt = await call(name, args);
     assert.equal(receipt.status, 'rejected');
@@ -246,20 +243,11 @@ test('MCP writes designs once, reads artifacts, and rejects path escapes includi
   );
   await mkdir(join(root, 'forge'));
   await symlink(outside.root, join(root, 'forge/issues'));
-  for (const name of [
-    'deus_dexter_issues_live',
-    'deus_dexter_issues_plan',
-    'deus_dexter_issue_close',
-  ])
-    await reject(
-      name,
-      name.endsWith('close')
-        ? { workspace: root, issue: 'ISSUE-0001', reason: 'NOISE', successor: null, confirm: true }
-        : { workspace: root, cursor: null, limit: 20 },
-    );
+  for (const name of ['deus_dexter_issues_live', 'deus_dexter_issues_plan'])
+    await reject(name, { workspace: root, cursor: null, limit: 20 });
 });
 
-test('MCP preserves board planning, close confirmation and trusted mutation receipts', async (t) => {
+test('MCP preserves board planning and rejects the removed closure API', async (t) => {
   const { root, call, reject, put } = await setup(t);
   trust(t);
   await put(
@@ -288,16 +276,7 @@ test('MCP preserves board planning, close confirmation and trusted mutation rece
   assert.equal(next.records.length, 1);
   assert.notEqual(page.records[0].id, next.records[0].id);
   await reject('deus_dexter_issues_plan', { workspace: root, cursor: page.nextCursor, limit: 1 });
-  const args = { workspace: root, issue: 'ISSUE-0001', reason: 'NOISE', successor: null };
-  await reject('deus_dexter_issue_close', args);
-  assert.equal(
-    (await call('deus_dexter_issue_close', { ...args, confirm: false })).status,
-    'rejected',
-  );
-  assert.equal(
-    (await call('deus_dexter_issue_close', { ...args, confirm: true })).status,
-    'rejected',
-  );
+  await reject('deus_dexter_issue_close', { workspace: root, issue: 'ISSUE-0001' });
   await put('forge/issues/ISSUE-0003.md', '---\nid: ISSUE-0003\nstatus: open\n---\nProduct\n');
   await reject('deus_dexter_issues_live', { workspace: root, cursor: page.nextCursor, limit: 1 });
   assert.equal(
@@ -340,8 +319,8 @@ for (const disconnect of [false, true])
     const controller = new AbortController();
     const running = client.callTool(
       {
-        name: 'deus_dexter_epic_create',
-        arguments: { title: 'literal;$(nope)', body: '', workspace: root },
+        name: 'deus_dexter_issue_reject',
+        arguments: { issue: 'ISSUE-0001', workspace: root },
       },
       undefined,
       { signal: controller.signal },
@@ -354,13 +333,7 @@ for (const disconnect of [false, true])
     if (!disconnect) await call('deus_workspace_info');
     const lines = (await waitFile(marker, 'stopped')).trim().split('\n');
     assert.equal(lines.length, 2);
-    assert.deepEqual(JSON.parse(lines[0]!), [
-      'submit',
-      `--dir=${root}`,
-      '--body=',
-      '--',
-      'literal;$(nope)',
-    ]);
+    assert.deepEqual(JSON.parse(lines[0]!), ['reject-issue', `--dir=${root}`, 'ISSUE-0001']);
     assert.equal(lines[1], 'stopped');
   });
 

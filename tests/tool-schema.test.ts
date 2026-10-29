@@ -53,16 +53,11 @@ test('registered schemas accept explicit defaults and reject invalid choices', (
   for (const removed of ['deus_research_web', 'deus_dexter_submit', 'deus_dexter_issue_create'])
     assert.equal(registered.has(removed), false);
   assert.ok(registered.has('deus_dexter_epic_create'));
-  const close = registered.get('deus_dexter_issue_close')!;
-  assert.ok(
-    Value.Check(close.parameters, {
-      workspace: '/tmp/project',
-      issue: 'ISSUE-0002',
-      reason: 'NOISE',
-      successor: null,
-      confirm: true,
-    }),
-  );
+  assert.equal(registered.has('deus_dexter_issue_close'), false);
+  const reject = registered.get('deus_dexter_issue_reject')!;
+  assert.ok(Value.Check(reject.parameters, { workspace: '/tmp/project', issue: 'ISSUE-0002' }));
+  for (const issue of ['ISSUE-0000', 'ISSUE-1', '../escape'])
+    assert.equal(Value.Check(reject.parameters, { workspace: '/tmp/project', issue }), false);
 });
 
 test('registered mutations normalize parent intent at the adapter boundary', async (t) => {

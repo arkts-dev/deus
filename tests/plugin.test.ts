@@ -78,7 +78,7 @@ test('minimal prompt and lazy skills describe tracked artifact contracts', async
     /\bDEAD\b/,
     /deus_dexter_issues_live/,
     /deus_dexter_issues_plan/,
-    /deus_dexter_issue_close/,
+    /deus_dexter_issue_reject/,
     /Never run the `run` drain/i,
   ])
     assert.match(productControl, pattern);
